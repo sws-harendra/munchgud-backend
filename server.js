@@ -11,8 +11,7 @@ const { connectRedis } = require("./config/redis_config");
 const app = express();
 const allowedOrigins = [
   "http://localhost:3000",
-  "http://168.231.126.20:3001",
-  "https://heritagehand.in",
+  "http://168.231.126.20:3002",
 ];
 
 app.use(
