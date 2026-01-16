@@ -22,9 +22,9 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
-(async () => {
-  await connectRedis(); // Initialize Redis connection
-})();
+// (async () => {
+//   await connectRedis(); // Initialize Redis connection
+// })();
 
 app.use(morgan("dev")); // Shows :method :url :status :response-time ms
 

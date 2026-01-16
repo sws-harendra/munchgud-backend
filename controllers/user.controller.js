@@ -11,7 +11,7 @@ const { Op } = require("sequelize");
 const { sendToken, generateAccessToken } = require("../helpers/jwtToken");
 const { where } = require("sequelize");
 const { sendmail } = require("../helpers/mailSend");
-const client = getRedisClient();
+// const client = getRedisClient();
 
 // ✅ Register user
 exports.registerUser = async (req, res, next) => {
@@ -125,11 +125,11 @@ exports.getUser = async (req, res, next) => {
     const userId = req.user.id;
 
     // 1. Check Redis cache first
-    const cachedUser = await client.get(`user:${userId}`);
-    if (cachedUser) {
-      console.log("Serving from cache");
-      return res.json({ success: true, user: JSON.parse(cachedUser) });
-    }
+    // const cachedUser = await client.get(`user:${userId}`);
+    // if (cachedUser) {
+    //   console.log("Serving from cache");
+    //   return res.json({ success: true, user: JSON.parse(cachedUser) });
+    // }
 
     // 2. If not in cache, fetch from DB
     const user = await User.findByPk(userId, {
@@ -138,7 +138,7 @@ exports.getUser = async (req, res, next) => {
     if (!user) return next(new ErrorHandler("User not found", 400));
 
     // 3. Save in Redis with TTL (e.g., 1 hour)
-    await client.setEx(`user:${userId}`, 3600, JSON.stringify(user));
+    // await client.setEx(`user:${userId}`, 3600, JSON.stringify(user));
 
     res.json({ success: true, user });
   } catch (error) {
@@ -153,7 +153,7 @@ exports.updateUserInfo = async (req, res, next) => {
     const user = await User.findByPk(req.user.id);
 
     await user.update({ fullname, email, phoneNumber });
-    await client.del(`user:${req.user.id}`);
+    // await client.del(`user:${req.user.id}`);
 
     res.json({ success: true, user });
   } catch (err) {
@@ -167,7 +167,7 @@ exports.updateAvatar = async (req, res, next) => {
     const user = await User.findByPk(req.user.id);
     if (user.avatar) fs.unlinkSync(`uploads/${user.avatar}`);
     await user.update({ avatar: req.file.filename });
-    await client.del(`user:${req.user.id}`);
+    // await client.del(`user:${req.user.id}`);
 
     res.json({ success: true, user });
   } catch (err) {
@@ -187,7 +187,7 @@ exports.updateUserAddress = async (req, res, next) => {
       return next(new ErrorHandler(`${addressType} already exists`, 400));
 
     const address = await Address.create({ ...req.body, userId: req.user.id });
-    await client.del(`user:${req.user.id}`);
+    // await client.del(`user:${req.user.id}`);
 
     res.json({ success: true, address });
   } catch (err) {
