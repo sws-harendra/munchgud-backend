@@ -48,6 +48,7 @@ app.use("/admin/blogs", require("./routes/blog.routes"));
 app.use("/media-coverage", require("./routes/mediaCoverage.routes"));
 app.use("/testimonials", require("./routes/testimonial.route"));
 app.use("/variants", require("./routes/variant.route"));
+app.use("/driver", require("./routes/driver.route"));
 
 app.get("/", (req, res) => {
   res.json("hello from backend");

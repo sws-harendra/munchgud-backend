@@ -267,6 +267,43 @@ const getMyOrders = async (req, res) => {
   }
 };
 
+
+const getDriverOrders = async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const orders = await Order.findAll({
+      where: { driverId:userId },
+      include: [
+        {
+          model: OrderItem,
+          include: [
+            {
+              model: Product,
+            },
+            {
+              model: ProductVariant,
+              as: "variant", // Make sure this matches your association alias
+            },
+          ],
+        },
+        { model: OrderAddress },
+        { model: Payment },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({ orders });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch orders", error: err.message });
+  }
+};
+
+
+
 // Get order details by orderId
 // controllers/orderController.js
 
@@ -405,7 +442,7 @@ const deleteOrder = async (req, res) => {
 const updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, paymentStatus, paymentMethod, totalAmount } = req.body;
+    const { status, paymentStatus, paymentMethod, totalAmount, driverId } = req.body;
 
     // Validate input
     const allowedStatuses = [
@@ -459,6 +496,7 @@ const updateOrder = async (req, res) => {
     if (paymentStatus) updatedFields.paymentStatus = paymentStatus;
     if (paymentMethod) updatedFields.paymentMethod = paymentMethod;
     if (totalAmount) updatedFields.totalAmount = totalAmount;
+if (driverId !== undefined) updatedFields.driverId = driverId;
 
     // Update order
     await order.update(updatedFields);
@@ -504,5 +542,5 @@ module.exports = {
   getOrderById,
   getAllOrders,
   deleteOrder,
-  updateOrder,
+  updateOrder,getDriverOrders
 };

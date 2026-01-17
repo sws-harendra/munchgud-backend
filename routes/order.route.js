@@ -5,6 +5,9 @@ const { isAuthenticated, isAdmin } = require("../middleware/isAuthenticated");
 
 router.post("/place", isAuthenticated, orderController.createOrder);
 router.get("/my-orders", isAuthenticated, orderController.getMyOrders);
+
+router.get("/driver/my-orders", isAuthenticated, orderController.getDriverOrders);
+
 router.get("/:orderId", isAuthenticated, orderController.getOrderById);
 router.get(
   "/",

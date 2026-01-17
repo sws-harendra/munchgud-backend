@@ -11,6 +11,11 @@ module.exports = (sequelize, DataTypes) => {
       Order.hasOne(models.OrderAddress, {
         foreignKey: "orderId",
       });
+      Order.belongsTo(models.User, {
+  foreignKey: "driverId",
+  as: "driver",
+});
+
       Order.hasMany(models.Payment, { foreignKey: "orderId" });
     }
   }
@@ -20,6 +25,10 @@ module.exports = (sequelize, DataTypes) => {
       userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+      },
+      driverId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
       },
       addressId: {
         type: DataTypes.INTEGER,
