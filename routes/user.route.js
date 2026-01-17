@@ -12,6 +12,20 @@ router.post(
   upload.single("file"),
   catchAsyncErrors(userController.registerUser)
 );
+
+
+router.put(
+  "/admin-update-user/:id",
+  upload.single("file"),
+  catchAsyncErrors(userController.updateUser)
+);
+
+router.post(
+  "/admin-create-user",
+  upload.single("file"),
+  catchAsyncErrors(userController.registerUserByAdmin)
+);
+
 router.post("/activation", catchAsyncErrors(userController.activateUser));
 router.post("/login-user", catchAsyncErrors(userController.loginUser));
 router.get(

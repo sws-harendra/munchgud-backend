@@ -62,7 +62,24 @@ exports.registerUser = async (req, res, next) => {
     next(new ErrorHandler(err.message, 500));
   }
 };
+exports.updateUser = async (req, res, next) => {
+  try {
+    const { fullname, email, phoneNumber, role } = req.body;
+    const user = await User.findByPk(req.params.id);
 
+    if (req.file && user.avatar) {
+      fs.unlinkSync(`uploads/${user.avatar}`);
+    }
+
+    const avatar = req.file ? req.file.filename : user.avatar;
+
+    await user.update({ fullname, email, phoneNumber, role, avatar });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    next(new ErrorHandler(err.message, 500));
+  }
+};
 // ✅ Activate user
 exports.activateUser = async (req, res, next) => {
   try {
@@ -82,6 +99,35 @@ exports.activateUser = async (req, res, next) => {
   }
 };
 
+
+exports.registerUserByAdmin = async (req, res, next) => {
+  try {
+    const { fullname, email, password, role } = req.body;
+    const existing = await User.findOne({ where: { email } });
+
+    if (existing) {
+      if (req.file) fs.unlinkSync(`uploads/${req.file.filename}`);
+      return res.status(400).json({
+        success: false,
+        message: "Record already exists",
+      });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const avatar = req.file ? req.file.filename : null;
+    const userData = { fullname, email, password: hashedPassword, role, avatar };
+
+    const user = await User.create(userData);
+
+    res.status(201).json({
+      success: true,
+      message: `User created successfully!`,
+      user,
+    });
+  } catch (err) {
+    next(new ErrorHandler(err.message, 500));
+  }
+};
 // ✅ Login
 exports.loginUser = async (req, res, next) => {
   try {
