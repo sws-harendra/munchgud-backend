@@ -8,7 +8,7 @@ const { uploadMedia } = require("../helpers/multerImageVideo");
 // CRUD routes
 router.post(
   "/",
-  uploadMedia.array("media", 10), // "media" field name, max 10 files
+  uploadMedia.array("media", 10), 
 
   isAuthenticated,
   isAdmin("admin"),

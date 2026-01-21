@@ -16,6 +16,7 @@ module.exports = (sequelize, DataTypes) => {
       address2: DataTypes.STRING,
       zipCode: DataTypes.STRING,
       addressType: DataTypes.STRING,
+      landmark: DataTypes.STRING,
       isDeleted: {
         type: DataTypes.BOOLEAN,
         defaultValue: false, // false = active, true = deleted
@@ -24,7 +25,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "Address",
-    }
+    },
   );
 
   return Address;

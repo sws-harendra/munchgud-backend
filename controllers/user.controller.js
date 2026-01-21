@@ -51,7 +51,7 @@ exports.registerUser = async (req, res, next) => {
         activationUrl,
       },
       email,
-      "Verify Your account"
+      "Verify Your account",
     );
 
     res.status(201).json({
@@ -99,7 +99,6 @@ exports.activateUser = async (req, res, next) => {
   }
 };
 
-
 exports.registerUserByAdmin = async (req, res, next) => {
   try {
     const { fullname, email, password, role } = req.body;
@@ -115,7 +114,13 @@ exports.registerUserByAdmin = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const avatar = req.file ? req.file.filename : null;
-    const userData = { fullname, email, password: hashedPassword, role, avatar };
+    const userData = {
+      fullname,
+      email,
+      password: hashedPassword,
+      role,
+      avatar,
+    };
 
     const user = await User.create(userData);
 
@@ -195,10 +200,10 @@ exports.getUser = async (req, res, next) => {
 // ✅ Update info
 exports.updateUserInfo = async (req, res, next) => {
   try {
-    const { email, fullname, phoneNumber, password } = req.body;
+    const { email, fullname, phoneNumber, secondaryNumber } = req.body;
     const user = await User.findByPk(req.user.id);
 
-    await user.update({ fullname, email, phoneNumber });
+    await user.update({ fullname, email, phoneNumber, secondaryNumber });
     // await client.del(`user:${req.user.id}`);
 
     res.json({ success: true, user });
