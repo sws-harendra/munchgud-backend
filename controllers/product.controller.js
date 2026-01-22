@@ -85,9 +85,9 @@ exports.getAllProducts = async (req, res) => {
             "JSON_SEARCH",
             Sequelize.col("tags"),
             "one",
-            `%${search}%`
+            `%${search}%`,
           ),
-          { [Op.not]: null }
+          { [Op.not]: null },
         ),
       ];
     }
@@ -177,9 +177,9 @@ exports.getAllProductsforAdmin = async (req, res) => {
             "JSON_SEARCH",
             Sequelize.col("tags"),
             "one",
-            `%${search}%`
+            `%${search}%`,
           ),
-          { [Op.not]: null }
+          { [Op.not]: null },
         ),
       ];
     }
@@ -407,7 +407,7 @@ exports.updateProduct = async (req, res) => {
           parsedTags = tags
             .flat()
             .map((tag) =>
-              typeof tag === "string" ? tag.replace(/['"\\]/g, "").trim() : tag
+              typeof tag === "string" ? tag.replace(/['"\\]/g, "").trim() : tag,
             )
             .filter((tag) => tag && tag.length > 0);
         }
@@ -432,6 +432,7 @@ exports.updateProduct = async (req, res) => {
       stock: req.body.stock,
       trending_product: req.body.trending_product === "true",
       paymentMethods: req.body.paymentMethods,
+      varientValue: req?.body?.varientValue,
       images: finalMedia, // This now contains both images and videos
     };
 

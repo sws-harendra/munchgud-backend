@@ -90,11 +90,16 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: true,
         allowNull: false,
       },
+      varientValue: {
+        type: DataTypes.STRING,
+        defaultValue: "piece",
+        allowNull: true,
+      },
     },
     {
       sequelize,
       modelName: "Product",
-    }
+    },
   );
   return Product;
 };
