@@ -43,7 +43,7 @@ exports.registerUser = async (req, res, next) => {
     //   message: `Hello ${fullname}, click here: ${activationUrl}`,
     // });
 
-    console.log("hererere=->");
+    /*console.log("hererere=->");
     await sendmail(
       "email_verify.hbs",
       {
@@ -52,7 +52,7 @@ exports.registerUser = async (req, res, next) => {
       },
       email,
       "Verify Your account",
-    );
+    );*/
 
     res.status(201).json({
       success: true,
@@ -141,6 +141,7 @@ exports.loginUser = async (req, res, next) => {
       return next(new ErrorHandler("Please provide all fields", 400));
     }
 
+    console.log(req.body)
     // Fetch WITH password (needed for bcrypt check)
     const user = await User.findOne({
       where: { email },
@@ -155,6 +156,7 @@ exports.loginUser = async (req, res, next) => {
       return next(new ErrorHandler("User not found", 400));
     }
 
+    console.log(user);
     // Compare password
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
