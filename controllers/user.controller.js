@@ -44,15 +44,15 @@ exports.registerUser = async (req, res, next) => {
     // });
 
     console.log("hererere=->");
-    await sendmail(
-      "email_verify.hbs",
-      {
-        fullname,
-        activationUrl,
-      },
-      email,
-      "Verify Your account",
-    );
+    // await sendmail(
+    //   "email_verify.hbs",
+    //   {
+    //     fullname,
+    //     activationUrl,
+    //   },
+    //   email,
+    //   "Verify Your account",
+    // );
 
     res.status(201).json({
       success: true,
