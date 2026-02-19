@@ -16,7 +16,7 @@ router.get(
   orderController.getAllOrders
 );
 // routes/order.js
-router.put(
+router.put( 
   "/:id",
   isAuthenticated,
   isAdmin("admin"),

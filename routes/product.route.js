@@ -24,6 +24,8 @@ router.get(
 
 router.get("/trending-products", productController.getTrendingProducts); // Read all
 
+router.get("/:id/related", productController.getRelatedProducts); // Read related products by category id
+
 router.get("/:id", productController.getProductById); // Read one
 router.put(
   "/:id",

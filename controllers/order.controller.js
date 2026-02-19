@@ -1,4 +1,6 @@
 const { sendmail } = require("../helpers/mailSend");
+const { ServiceArea } = require("../models");
+
 const hbs = require("hbs");
 const path = require("path");
 const {
@@ -34,6 +36,22 @@ const createOrder = async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: "Address not found" });
     }
+
+  // Check Delivery Serviceability
+  const serviceArea = await ServiceArea.findOne({
+  where: {
+    pincode: address.zipCode,
+    isActive: true,
+  },
+  transaction: t,
+  });
+
+  if (!serviceArea) {
+  await t.rollback();
+  return res.status(400).json({
+    message: "Sorry ❌ Delivery not available in this area",
+  });
+}
 
     // 2️⃣ Calculate total amount and validate stock
     let totalAmount = 0;
@@ -544,3 +562,4 @@ module.exports = {
   deleteOrder,
   updateOrder,getDriverOrders
 };
+

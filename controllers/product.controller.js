@@ -73,6 +73,8 @@ exports.getAllProducts = async (req, res) => {
     const minPrice = req.query.minPrice || null;
     const maxPrice = req.query.maxPrice || null;
     const trending = req.query.trending || null;
+    const color = req.query.color || null;
+    const size = req.query.size || null;
 
     let where = {};
 
@@ -116,11 +118,17 @@ exports.getAllProducts = async (req, res) => {
         {
           model: ProductVariant,
           as: "ProductVariants",
+          required: color || size ? ture : false, //this is join when filtering
           attributes: ["id", "sku", "price", "stock", "image", "isActive"],
           include: [
             {
               model: VariantOption,
               as: "options",
+              required: color || size ? ture : false,
+              where: {
+                ...(color && { value: color }),
+                ...(size && { value: size }),
+              },
               attributes: ["id", "name", "value", "hexCode", "imageUrl"],
               include: [
                 {
@@ -175,7 +183,7 @@ exports.getAllProductsforAdmin = async (req, res) => {
         Sequelize.where(
           Sequelize.fn(
             "JSON_SEARCH",
-            Sequelize.col("tags"),
+            Sequelize.col("tags"),             //search based on tag
             "one",
             `%${search}%`,
           ),
@@ -314,6 +322,74 @@ exports.getProductById = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ✅ Get Related Products by Category
+exports.getRelatedProducts = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // find current product
+    const currentProduct = await Product.findByPk(id);
+
+    if (!currentProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    // fetch same category product
+    const relatedProducts = await Product.findAll({
+      where: {
+        categoryId: currentProduct.categoryId,
+        id: { [Op.ne]: id }, // exclude current product
+        isActive: true,
+      },
+
+      include: [
+        {
+          model: Category,
+          attributes: ["id", "name"],
+        },
+        {
+          model: ProductVariant,
+          as: "ProductVariants",
+          attributes: ["id", "sku", "price", "stock", "image", "isActive"],
+          include: [
+            {
+              model: VariantOption,
+              as: "options",
+              attributes: ["id", "name", "value", "hexCode", "imageUrl"],
+              include: [
+                {
+                  model: VariantCategory,
+                  as: "category",
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+
+      limit: 8,
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Related products fetched successfully",
+      relatedProducts,
+    });
+  } catch (error) {
+    console.error("Related Products Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 
 // Update a product
 exports.updateProduct = async (req, res) => {
