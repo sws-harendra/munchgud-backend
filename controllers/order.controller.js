@@ -41,7 +41,7 @@ const createOrder = async (req, res) => {
   const serviceArea = await ServiceArea.findOne({
   where: {
     pincode: address.zipCode,
-    isActive: true,
+    // isActive: true,
   },
   transaction: t,
   });
