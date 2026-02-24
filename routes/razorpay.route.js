@@ -9,6 +9,6 @@ router.patch(
   "/credentials/:id/activate",
   RazorpayCredential.activateCredential
 );
-router.post("/create_order", RazorpayCredential.create_order);
+router.post("/order", RazorpayCredential.create_order);
 
 module.exports = router;

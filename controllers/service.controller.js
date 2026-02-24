@@ -12,7 +12,8 @@ exports.checkPincodeService = async (req, res) => {
     }
 
     const area = await ServiceArea.findOne({
-      where: { pincode, isActive: true },
+      where: { pincode,}
+      //  isActive: true ,
     });
 
     if (!area) {

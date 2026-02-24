@@ -57,7 +57,7 @@ app.get("/", (req, res) => {
   res.json("hello from backend");
 });
 
-let port = process.env.PORT || 8000;
+let port = process.env.PORT || 8008;
 app.listen(port, () => {
   console.log(`Server is running on ${port}`);
 });
