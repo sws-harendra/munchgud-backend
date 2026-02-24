@@ -91,6 +91,7 @@ exports.create_order = async (req, res) => {
     const cred = await RazorpayCredential.findOne({
       where: { status: "active" },
     });
+    console.log("Active credential:", cred);
 
     if (!cred) {
       return res.status(404).json({ error: "No active credentials found" });
@@ -141,6 +142,6 @@ exports.create_order = async (req, res) => {
     });
   } catch (err) {
     console.log(err);
-    res.status(500).json("som error occred");
+    res.status(500).json("some error occred");
   }
 };

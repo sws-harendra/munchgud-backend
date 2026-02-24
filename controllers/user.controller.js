@@ -35,15 +35,15 @@ exports.registerUser = async (req, res, next) => {
       expiresIn: "5m",
     });
 
-    const activationUrl = `http://localhost:3000/activation/${activationToken}`;
+    const activationUrl = `${process.env.CLIENT_URL}/activation/${activationToken}`;
     console.log(activationToken);
-    // await sendMail({
+    // await sendmail({
     //   email,
     //   subject: "Activate your account",
     //   message: `Hello ${fullname}, click here: ${activationUrl}`,
     // });
 
-    /*console.log("hererere=->");
+    console.log("hererere=->");
     await sendmail(
       "email_verify.hbs",
       {
@@ -52,7 +52,7 @@ exports.registerUser = async (req, res, next) => {
       },
       email,
       "Verify Your account",
-    );*/
+    );
 
     res.status(201).json({
       success: true,

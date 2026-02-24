@@ -17,7 +17,9 @@ const {
 const { Op, Sequelize } = require("sequelize");
 
 const createOrder = async (req, res) => {
-  const { userId, addressId, items, paymentMethod, transactionId } = req.body;
+  // const { userId, addressId, items, paymentMethod, transactionId } = req.body;
+  const { addressId, items, paymentMethod, transactionId } = req.body;
+  const userId = req.user.id; // 🔥 Always take from token
 
   if (!items || items.length === 0) {
     return res.status(400).json({ message: "No items in the order." });
