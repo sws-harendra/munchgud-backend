@@ -40,20 +40,20 @@ const createOrder = async (req, res) => {
     }
 
   // Check Delivery Serviceability
-  const serviceArea = await ServiceArea.findOne({
-  where: {
-    pincode: address.zipCode,
-    // isActive: true,
-  },
-  transaction: t,
-  });
+  // const serviceArea = await ServiceArea.findOne({
+  // where: {
+  //   pincode: address.zipCode,
+  //   // isActive: true,
+  // },
+  // transaction: t,
+  // });
 
-  if (!serviceArea) {
-  await t.rollback();
-  return res.status(400).json({
-    message: "Sorry ❌ Delivery not available in this area",
-  });
-}
+//   if (!serviceArea) {
+//   await t.rollback();
+//   return res.status(400).json({
+//     message: "Sorry ❌ Delivery not available in this area",
+//   });
+// }
 
     // 2️⃣ Calculate total amount and validate stock
     let totalAmount = 0;

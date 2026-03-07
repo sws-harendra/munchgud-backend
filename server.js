@@ -7,10 +7,12 @@ const express = require("express");
 const cors = require("cors");
 require("./config/db");
 const { connectRedis } = require("./config/redis_config");
+const instagramRoutes = require("./routes/instagram.routes");
+
 
 const app = express();
 const allowedOrigins = [
-  // "http://localhost:3000",
+  "http://localhost:3000",
   process.env.CLIENT_URL,
   "http://168.231.126.20:3002",
 ];
@@ -52,6 +54,7 @@ app.use("/variants", require("./routes/variant.route"));
 app.use("/driver", require("./routes/driver.route"));
 app.use("/review-rating", require("./routes/reviewRating.route"));
 app.use("/pincode",require("./routes/pincode.route"));
+app.use("/instagram", instagramRoutes);
 
 app.get("/", (req, res) => {
   res.json("hello from backend");
