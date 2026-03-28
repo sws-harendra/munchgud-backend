@@ -5,7 +5,15 @@ var logger = require("morgan");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
-require("./config/db");
+
+const sequelize = require("./config/db");
+const { DataTypes } = require("sequelize");
+
+// 🔥 IMPORTANT (model init manually)
+require("./models/user.model")(sequelize, DataTypes);
+require("./models/mediaCoverage.model")(sequelize, DataTypes);
+
+
 const { connectRedis } = require("./config/redis_config");
 const instagramRoutes = require("./routes/instagram.routes");
 
@@ -53,16 +61,27 @@ app.use("/testimonials", require("./routes/testimonial.route"));
 app.use("/variants", require("./routes/variant.route"));
 app.use("/driver", require("./routes/driver.route"));
 app.use("/review-rating", require("./routes/reviewRating.route"));
-app.use("/pincode",require("./routes/pincode.route"));
+app.use("/pincode", require("./routes/pincode.route"));
 app.use("/instagram", instagramRoutes);
 
 app.get("/", (req, res) => {
   res.json("hello from backend");
 });
 
-let port = process.env.PORT || 8008;
-app.listen(port, () => {
-  console.log(`Server is running on ${port}`);
-});
+const port = process.env.PORT || 8008;
 
-module.exports = app;
+(async () => {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ DB connected");
+
+    await sequelize.sync({ alter: true }); // 🔥 TABLE CREATE
+    console.log("✅ Tables synced");
+
+    app.listen(port, () => {
+      console.log(`🚀 Server is running on ${port}`);
+    });
+  } catch (error) {
+    console.log("❌ DB Error:", error);
+  }
+})();

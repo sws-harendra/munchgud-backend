@@ -8,19 +8,19 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     dialect: process.env.DB_DIALECT || "mysql",
     timezone: "+05:30",
-    logging: false, // 👈 disables console SQL logs
-
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-      },
-    },
+    logging: false,
   }
 );
-try {
-  sequelize.authenticate();
-  console.log("==connected db successfully==");
-} catch (err) {
-  console.log(err);
-}
+
+// ✅ async connect check
+(async () => {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ DB connected successfully");
+  } catch (err) {
+    console.log("❌ DB connection error:", err);
+  }
+})();
+
+// ✅ VERY IMPORTANT
+module.exports = sequelize;
