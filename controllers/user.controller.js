@@ -59,6 +59,13 @@ exports.registerUser = async (req, res, next) => {
       message: `Check your email (${email}) to activate your account!`,
     });
   } catch (err) {
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({
+        success: false,
+        message: "User already exists",
+      });
+    }
+
     next(new ErrorHandler(err.message, 500));
   }
 };
@@ -86,14 +93,15 @@ exports.activateUser = async (req, res, next) => {
     const { activation_token } = req.body;
     const newUser = jwt.verify(activation_token, process.env.ACTIVATION_SECRET);
 
-    let user = await User.findOne({
-      where: { email: newUser.email },
-      attributes: { exclude: ["password"] },
-    });
-    if (user) return next(new ErrorHandler("User already exists", 400));
-
-    user = await User.create(newUser);
-    sendToken(user, 201, res);
+    try {
+      const user = await User.create(newUser);
+      sendToken(user, 201, res);
+    } catch (err) {
+      if (err.name === "SequelizeUniqueConstraintError") {
+        return next(new ErrorHandler("User already exists", 400));
+      }
+      next(new ErrorHandler(err.message, 500));
+    }
   } catch (err) {
     next(new ErrorHandler(err.message, 500));
   }
