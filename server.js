@@ -5,15 +5,7 @@ var logger = require("morgan");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
-
-const sequelize = require("./config/db");
-const { DataTypes } = require("sequelize");
-
-// 🔥 IMPORTANT (model init manually)
-require("./models/user.model")(sequelize, DataTypes);
-require("./models/mediaCoverage.model")(sequelize, DataTypes);
-
-
+require("./config/db");
 const { connectRedis } = require("./config/redis_config");
 const instagramRoutes = require("./routes/instagram.routes");
 
@@ -68,20 +60,9 @@ app.get("/", (req, res) => {
   res.json("hello from backend");
 });
 
-const port = process.env.PORT || 8008;
+let port = process.env.PORT || 8008;
+app.listen(port, () => {
+  console.log(`Server is running on ${port}`);
+});
 
-(async () => {
-  try {
-    await sequelize.authenticate();
-    console.log("✅ DB connected");
-
-    await sequelize.sync({ alter: true }); // 🔥 TABLE CREATE
-    console.log("✅ Tables synced");
-
-    app.listen(port, () => {
-      console.log(`🚀 Server is running on ${port}`);
-    });
-  } catch (error) {
-    console.log("❌ DB Error:", error);
-  }
-})();
+module.exports = app;
