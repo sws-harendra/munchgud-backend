@@ -95,7 +95,7 @@ exports.activateUser = async (req, res, next) => {
 
     try {
       const user = await User.create(newUser);
-      sendToken(user, 201, res);
+      return sendToken(user, 201, res);
     } catch (err) {
       if (err.name === "SequelizeUniqueConstraintError") {
         return next(new ErrorHandler("User already exists", 400));
