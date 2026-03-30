@@ -11,7 +11,7 @@ module.exports = {
       },
       categoryId: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: true,
         references: {
           model: "Categories", // 👈 assumes you already have Categories table
           key: "id",
@@ -21,7 +21,7 @@ module.exports = {
       },
       title: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       subtitle: {
         type: Sequelize.STRING,
@@ -29,7 +29,7 @@ module.exports = {
       },
       imageUrl: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       link: {
         type: Sequelize.STRING,

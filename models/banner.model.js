@@ -14,11 +14,11 @@ module.exports = (sequelize, DataTypes) => {
     {
       categoryId: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
       },
       title: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       subtitle: {
         type: DataTypes.STRING,
@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       imageUrl: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       link: {
         type: DataTypes.STRING,

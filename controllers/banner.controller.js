@@ -6,16 +6,22 @@ exports.createBanner = async (req, res) => {
     const { categoryId, title, subtitle, link, ctaText } = req.body;
     const image = req.file ? req.file.filename : null;
 
-    const category = await Category.findByPk(categoryId);
-    if (!category) return res.status(404).json({ error: "Category not found" });
+    let category = null;
+
+    if (categoryId) {
+      category = await Category.findByPk(categoryId);
+      if (!category) {
+        return res.status(404).json({ error: "Category not found" });
+      }
+    }
 
     const banner = await Banner.create({
-      categoryId,
-      title,
-      subtitle,
-      imageUrl: image,
-      link,
-      ctaText,
+      categoryId: categoryId || null,
+      title: title || null,
+      subtitle: subtitle || null,
+      imageUrl: image || null,
+      link: link || null,
+      ctaText: ctaText || null,
     });
 
     res.status(201).json(banner);
@@ -63,12 +69,14 @@ exports.updateBanner = async (req, res) => {
     }
 
     await banner.update({
-      title,
-      subtitle,
-      ctaText,
-      link,
-      categoryId: categoryId ? parseInt(categoryId, 10) : banner.categoryId,
-      imageUrl,
+      title: title || banner.title,
+      subtitle: subtitle || banner.subtitle,
+      ctaText: ctaText || banner.ctaText,
+      link: link || banner.link,
+      categoryId: categoryId
+        ? parseInt(categoryId, 10)
+        : banner.categoryId,
+      imageUrl: imageUrl || banner.imageUrl,
     });
 
     res.json(banner);

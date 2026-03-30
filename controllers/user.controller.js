@@ -161,14 +161,20 @@ exports.loginUser = async (req, res, next) => {
       ],
     });
     if (!user) {
-      return next(new ErrorHandler("User not found", 400));
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
     console.log(user);
     // Compare password
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      return next(new ErrorHandler("Invalid credentials", 400));
+      return res.status(400).json({
+        success: false,
+        message: "Invalid credentials",
+      });
     }
 
     // Remove password before sending response
