@@ -22,6 +22,15 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,   // ✅ MUST ADD
       },
       password: DataTypes.STRING,
+
+      resetPasswordToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      resetPasswordExpire: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       phoneNumber: { type: DataTypes.BIGINT, allowNull: true },
       secondaryNumber: {
         type: DataTypes.BIGINT,
@@ -34,6 +43,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "User",
+      timestamps: true,
     },
   );
   return User;

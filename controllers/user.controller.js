@@ -186,6 +186,131 @@ exports.loginUser = async (req, res, next) => {
     next(new ErrorHandler(err.message, 500));
   }
 };
+
+
+// 🔐 FORGOT PASSWORD START
+
+const crypto = require("crypto");
+
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // ❗ VALIDATION
+    if (!email) {
+      return next(new ErrorHandler("Email is required", 400));
+    }
+
+    // 🔍 FIND USER
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return next(new ErrorHandler("User not found", 404));
+    }
+
+    // 🔐 GENERATE TOKEN
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    // 💾 SAVE IN DB
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = new Date(Date.now() + 5 * 60 * 1000);
+
+    await user.save();
+
+    // 🔗 RESET LINK
+    const resetUrl = `${process.env.CLIENT_URL}/authentication/reset-password/${resetToken}`;
+
+    console.log("\n🔐 PASSWORD RESET");
+    console.log("📧 Email:", user.email);
+    console.log("🔗 Link:", resetUrl);
+    console.log("====================================\n");
+
+    await sendmail(
+      "reset_password.hbs",
+      {
+        fullname: user.fullname,
+        resetUrl,
+      },
+      user.email,
+      "Reset Your Password"
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Reset link generated (check console)",
+    });
+
+  } catch (err) {
+    next(new ErrorHandler(err.message, 500));
+  }
+};
+
+
+// 🔐 RESET PASSWORD START
+
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { password, confirmPassword } = req.body;
+
+    // 1️⃣ Validation
+    if (!password || !confirmPassword) {
+      return next(new ErrorHandler("All fields are required", 400));
+    }
+
+    if (password !== confirmPassword) {
+      return next(new ErrorHandler("Passwords do not match", 400));
+    }
+
+    // 2️⃣ Hash token
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    // 3️⃣ Find user with VALID token
+    const user = await User.findOne({
+      where: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: {
+          [Op.gt]: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      return next(new ErrorHandler("Token expired or invalid", 400));
+    }
+
+    // 4️⃣ Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 5️⃣ Update user
+    user.password = hashedPassword;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+
+    await user.save();
+
+    // 6️⃣ Optional: Auto login after reset
+    // sendToken(user, 200, res);
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset successful",
+    });
+
+  } catch (err) {
+    next(new ErrorHandler(err.message, 500));
+  }
+};
+
+
 // ✅ Get logged in user
 exports.getUser = async (req, res, next) => {
   try {
@@ -286,7 +411,7 @@ exports.updatePassword = async (req, res, next) => {
     if (newPassword !== confirmPassword)
       return next(new ErrorHandler("Passwords do not match", 400));
 
-    user.password = newPassword;
+    user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
 
     res.json({ success: true, message: "Password updated!" });

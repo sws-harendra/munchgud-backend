@@ -6,21 +6,46 @@ const path = require("path");
 async function sendmail(templateName, templateData, to, subject) {
   try {
     // Create reusable transporter object using the default SMTP transport
+    const {
+      SMTP_HOST,
+      EMAILID,
+      PASSWORD,
+    } = process.env;
+
+    // 👉 DEV MODE (no email config)
+    if (
+      !SMTP_HOST ||
+      SMTP_HOST === "127.0.0.1" ||
+      !EMAILID ||
+      !PASSWORD
+    ) {
+      console.log("\n📩 EMAIL (DEV MODE)");
+      console.log("To:", to);
+      console.log("Subject:", subject);
+      console.log("📦 Template:", templateName);
+
+      if (templateData?.resetUrl) {
+        console.log("🔗 Reset Link:", templateData.resetUrl);
+      } else {
+        console.log("📄 Data:", templateData);
+      }
+
+      return { success: true, devMode: true };
+    }
+
+    // 👉 REAL EMAIL MODE
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: 465, // Use 587 for STARTTLS
-      secure: false, // false for STARTTLS
-      auth: {
-        user: process.env.EMAILID,
-        pass: process.env.PASSWORD,
-      },
+      host: SMTP_HOST,
+      port: 465,
       secure: true,
+      auth: {
+        user: EMAILID,
+        pass: PASSWORD,
+      },
       tls: {
-        // Allow TLS
         rejectUnauthorized: false,
       },
     });
-
     // Read the email template file
     const templatePath = path.join(__dirname, "../templates", templateName);
     const source = fs.readFileSync(templatePath, "utf8");
@@ -31,16 +56,14 @@ async function sendmail(templateName, templateData, to, subject) {
 
     // Setup email data
     const mailOptions = {
-      from: `"${process.env.EMAIL_FROM_NAME || "Your Store"}" <${
-        process.env.EMAILID
-      }>`,
+      from: `"${process.env.EMAIL_FROM_NAME || "Your Store"}" <${process.env.EMAILID
+        }>`,
       to,
       subject,
       html,
       // You can also add a text version for email clients that don't support HTML
-      text: `Thank you for your order #${
-        templateData.order?.id || ""
-      }. Please find your order details below.`,
+      text: `Thank you for your order #${templateData.order?.id || ""
+        }. Please find your order details below.`,
     };
 
     // Send email

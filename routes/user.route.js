@@ -3,7 +3,6 @@ const { isAuthenticated, isAdmin } = require("../middleware/isAuthenticated");
 const userController = require("../controllers/user.controller");
 const { upload } = require("../helpers/multer");
 const catchAsyncErrors = require("../middleware/catchError");
-
 const router = express.Router();
 
 // Auth
@@ -28,6 +27,15 @@ router.post(
 
 router.post("/activation", catchAsyncErrors(userController.activateUser));
 router.post("/login-user", catchAsyncErrors(userController.loginUser));
+
+router.post(
+  "/forgot",
+  catchAsyncErrors(userController.forgotPassword)
+);
+router.put(
+  "/reset/:token",
+  catchAsyncErrors(userController.resetPassword)
+);
 router.get(
   "/getuser",
   isAuthenticated,
