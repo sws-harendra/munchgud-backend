@@ -55,6 +55,7 @@ app.use("/driver", require("./routes/driver.route"));
 app.use("/review-rating", require("./routes/reviewRating.route"));
 app.use("/pincode", require("./routes/pincode.route"));
 app.use("/instagram", instagramRoutes);
+app.use("/social-links", require("./routes/socialLinks.route"));
 
 app.get("/", (req, res) => {
   res.json("hello from backend");
