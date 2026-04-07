@@ -2,17 +2,23 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn("users", "resetPasswordToken", {
-      type: Sequelize.STRING,
-    });
+    const table = await queryInterface.describeTable("Users");
 
-    await queryInterface.addColumn("users", "resetPasswordExpire", {
-      type: Sequelize.DATE,
-    });
+    if (!table.resetPasswordToken) {
+      await queryInterface.addColumn("Users", "resetPasswordToken", {
+        type: Sequelize.STRING,
+      });
+    }
+
+    if (!table.resetPasswordExpire) {
+      await queryInterface.addColumn("Users", "resetPasswordExpire", {
+        type: Sequelize.DATE,
+      });
+    }
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.removeColumn("users", "resetPasswordToken");
-    await queryInterface.removeColumn("users", "resetPasswordExpire");
+    await queryInterface.removeColumn("Users", "resetPasswordToken");
+    await queryInterface.removeColumn("Users", "resetPasswordExpire");
   },
 };
