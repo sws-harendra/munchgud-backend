@@ -237,7 +237,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: "Reset link generated (check console)",
+      message: "Reset link generated ",
     });
 
   } catch (err) {
