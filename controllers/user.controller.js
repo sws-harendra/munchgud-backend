@@ -20,7 +20,9 @@ exports.registerUser = async (req, res, next) => {
     const existing = await User.findOne({ where: { email } });
 
     if (existing) {
-      if (req.file) fs.unlinkSync(`uploads/${req.file.filename}`);
+      if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+        fs.unlinkSync(`uploads/${req.file.filename}`);
+      }
       return res.status(400).json({
         success: false,
         message: "Record already exists",
@@ -69,7 +71,7 @@ exports.updateUser = async (req, res, next) => {
     const { fullname, email, phoneNumber, role } = req.body;
     const user = await User.findByPk(req.params.id);
 
-    if (req.file && user.avatar) {
+    if (req.file && user.avatar && fs.existsSync(`uploads/${user.avatar}`)) {
       fs.unlinkSync(`uploads/${user.avatar}`);
     }
 
@@ -108,7 +110,9 @@ exports.registerUserByAdmin = async (req, res, next) => {
     const existing = await User.findOne({ where: { email } });
 
     if (existing) {
-      if (req.file) fs.unlinkSync(`uploads/${req.file.filename}`);
+      if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+        fs.unlinkSync(`uploads/${req.file.filename}`);
+      }
       return res.status(400).json({
         success: false,
         message: "Record already exists",
@@ -352,7 +356,9 @@ exports.updateUserInfo = async (req, res, next) => {
 exports.updateAvatar = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);
-    if (user.avatar) fs.unlinkSync(`uploads/${user.avatar}`);
+    if (user.avatar && fs.existsSync(`uploads/${user.avatar}`)) {
+      fs.unlinkSync(`uploads/${user.avatar}`);
+    }
     await user.update({ avatar: req.file.filename });
     // await client.del(`user:${req.user.id}`);
 
