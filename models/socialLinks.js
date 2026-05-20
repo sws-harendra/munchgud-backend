@@ -14,6 +14,8 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING,
             allowNull: true,
         },
+    }, {
+        tableName: "socialLinks",
     });
 
     return SocialLinks;

@@ -4,10 +4,16 @@ const {
   ProductVariant,
   VariantOption,
   VariantCategory,
+  ProductVariantOption,
+  OrderItem,
+  Video,
+  SectionProducts,
+  Review,
+  Cart,
+  sequelize
 } = require("../models");
 const { upload } = require("../helpers/multer");
 const { Op, Sequelize } = require("sequelize");
-const { sequelize } = require("../config/db"); // 👈 import your own instance
 // Create a new product
 const fs = require("fs");
 const path = require("path");
@@ -552,18 +558,99 @@ exports.updateProduct = async (req, res) => {
 
 // Delete a product
 exports.deleteProduct = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const product = await Product.findByPk(req.params.id);
-    if (!product)
+    const product = await Product.findByPk(req.params.id, { transaction });
+    if (!product) {
+      await transaction.rollback();
       return res
         .status(404)
         .json({ success: false, message: "Product not found" });
+    }
 
-    await product.destroy();
+    // 1. Retrieve all variants for this product
+    const variants = await ProductVariant.findAll({
+      where: { productId: product.id },
+      transaction
+    });
+    const variantIds = variants.map((v) => v.id);
+
+    // 2. Delete junction variant-options and dependent order items
+    if (variantIds.length > 0) {
+      await ProductVariantOption.destroy({
+        where: { variantId: variantIds },
+        transaction
+      });
+      
+      await OrderItem.destroy({
+        where: { variantId: variantIds },
+        transaction
+      });
+    }
+
+    // 3. Delete dependent OrderItems for the product
+    await OrderItem.destroy({
+      where: { productId: product.id },
+      transaction
+    });
+
+    // 4. Delete dependent Cart items
+    await Cart.destroy({
+      where: { productId: product.id },
+      transaction
+    });
+
+    // 5. Delete dependent Videos
+    await Video.destroy({
+      where: { productId: product.id },
+      transaction
+    });
+
+    // 6. Delete dependent SectionProducts
+    await SectionProducts.destroy({
+      where: { productId: product.id },
+      transaction
+    });
+
+    // 7. Delete dependent Reviews
+    await Review.destroy({
+      where: { productId: product.id },
+      transaction
+    });
+
+    // 8. Delete ProductVariants
+    if (variantIds.length > 0) {
+      await ProductVariant.destroy({
+        where: { id: variantIds },
+        transaction
+      });
+    }
+
+    // 9. Finally destroy the Product itself
+    await product.destroy({ transaction });
+
+    await transaction.commit();
+    
+    // Optional: Clean up product images from the filesystem
+    if (product.images && Array.isArray(product.images)) {
+      product.images.forEach((img) => {
+        try {
+          const fullPath = path.join(__dirname, "../uploads", img);
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        } catch (e) {
+          console.error("Error deleting image file:", e);
+        }
+      });
+    }
+
     res
       .status(200)
       .json({ success: true, message: "Product deleted successfully" });
   } catch (error) {
+    await transaction.rollback();
+    console.error("Delete product error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

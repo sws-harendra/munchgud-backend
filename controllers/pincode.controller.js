@@ -91,4 +91,31 @@ exports.updatePincode = async (req, res) => {
   }
 };
 
+// Delete pincode by Admin (DELETE)
+exports.deletePincode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pincode = await Pincode.findOne({
+      where: { id, isDeleted: false },
+    });
+
+    if (!pincode) {
+      return res.status(404).json({
+        message: "Pincode not found",
+      });
+    }
+
+    pincode.isDeleted = true;
+    await pincode.save();
+
+    res.status(200).json({
+      message: "Pincode deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
 
