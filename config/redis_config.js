@@ -4,17 +4,22 @@ let redisClient = null;
 
 const connectRedis = async () => {
   if (!redisClient) {
-    redisClient = createClient({ url: "redis://localhost:6379" });
+    const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+    redisClient = createClient({ url: redisUrl });
 
     redisClient.on("error", (err) => {
-      console.error("Redis Client Error:", err);
+      console.error("❌ Redis Client Error:", err.message);
     });
 
     redisClient.on("connect", () => {
-      console.log("Connected to Redis");
+      console.log("✅ Connected to Redis at", redisUrl);
     });
 
-    await redisClient.connect();
+    try {
+      await redisClient.connect();
+    } catch (err) {
+      console.error("❌ Failed to connect to Redis:", err.message);
+    }
   }
   return redisClient;
 };
