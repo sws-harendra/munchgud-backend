@@ -51,6 +51,7 @@ app.use("/artist", require("./routes/artist.route"));
 app.use("/upload-media", require("./routes/uploadMedia.route"));
 app.use("/admin/blogs", require("./routes/blog.routes"));
 app.use("/blogs", require("./routes/blog.routes"));
+app.use("/community", require("./routes/community.routes"));
 app.use("/media-coverage", require("./routes/mediaCoverage.routes"));
 app.use("/testimonials", require("./routes/testimonial.route"));
 app.use("/variants", require("./routes/variant.route"));
