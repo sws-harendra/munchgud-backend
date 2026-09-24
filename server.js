@@ -6,7 +6,7 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 require("./config/db");
-const { connectRedis } = require("./config/redis_config");
+//const { connectRedis } = require("./config/redis_config");
 const instagramRoutes = require("./routes/instagram.routes");
 
 
@@ -26,7 +26,7 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 (async () => {
-  await connectRedis(); // Initialize Redis connection
+ // await connectRedis(); // Initialize Redis connection
 })();
 
 app.use(morgan("dev")); // Shows :method :url :status :response-time ms
