@@ -49,6 +49,41 @@ module.exports = (sequelize, DataTypes) => {
       featuredImage: {
         type: DataTypes.STRING,
       },
+      category: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        defaultValue: "Product Guides",
+      },
+      isFeatured: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+      isTrending: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+      readTime: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        defaultValue: "5 min read",
+      },
+      views: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      authorName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        defaultValue: "Team Flazo",
+      },
+      tags: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: "[]",
+      },
       status: {
         type: DataTypes.ENUM("draft", "published"),
         defaultValue: "draft",
@@ -64,7 +99,6 @@ module.exports = (sequelize, DataTypes) => {
       },
       authorId: {
         type: DataTypes.INTEGER,
-
         onUpdate: "CASCADE",
         onDelete: "SET NULL",
       },
