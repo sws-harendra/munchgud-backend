@@ -335,6 +335,10 @@ const getOrderById = async (req, res) => {
     const order = await Order.findByPk(orderId, {
       include: [
         {
+          model: User,
+          attributes: ["id", "fullname", "email", "phoneNumber", "avatar"],
+        },
+        {
           model: OrderItem,
           include: [
             {
@@ -407,7 +411,12 @@ const getAllOrders = async (req, res) => {
 
     const { count, rows: orders } = await Order.findAndCountAll({
       where: whereClause,
+      distinct: true,
       include: [
+        {
+          model: User,
+          attributes: ["id", "fullname", "email", "phoneNumber", "avatar"],
+        },
         {
           model: OrderItem,
           include: [
@@ -538,7 +547,17 @@ if (driverId !== undefined) updatedFields.driverId = driverId;
     // Fetch the updated order with all associations
     const updatedOrder = await Order.findByPk(id, {
       include: [
-        { model: OrderItem, include: [Product] },
+        {
+          model: User,
+          attributes: ["id", "fullname", "email", "phoneNumber", "avatar"],
+        },
+        {
+          model: OrderItem,
+          include: [
+            { model: Product },
+            { model: ProductVariant, as: "variant" },
+          ],
+        },
         { model: OrderAddress },
         { model: Payment },
       ],

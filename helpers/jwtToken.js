@@ -20,6 +20,9 @@ const sendToken = async (user, statusCode, res) => {
   res.status(statusCode).json({
     success: true,
     user,
+    accessToken,
+    refreshToken,
+    token: accessToken,
   });
 };
 const generateAccessToken = (user) => {

@@ -17,6 +17,14 @@ const { sendmail } = require("../helpers/mailSend");
 exports.registerUser = async (req, res, next) => {
   try {
     const { fullname, email, password } = req.body;
+
+    if (!fullname || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name, email and password are required",
+      });
+    }
+
     const existing = await User.findOne({ where: { email } });
 
     if (existing) {
@@ -25,41 +33,52 @@ exports.registerUser = async (req, res, next) => {
       }
       return res.status(400).json({
         success: false,
-        message: "Record already exists",
+        message: "An account with this email already exists",
       });
     }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const avatar = req.file ? req.file.filename : null;
-    const userData = { fullname, email, password: hashedPassword, avatar };
-
-    const activationToken = jwt.sign(userData, process.env.ACTIVATION_SECRET, {
-      expiresIn: "5m",
-    });
-
-    const activationUrl = `${process.env.CLIENT_URL}/activation/${activationToken}`;
-    console.log(activationUrl);
-
-    console.log("hererere=->");
-    await sendmail(
-      "email_verify.hbs",
-      {
-        fullname,
-        activationUrl,
-      },
+    const userData = {
+      fullname,
       email,
-      "Verify Your account",
-    );
+      password: hashedPassword,
+      avatar,
+      role: "user",
+    };
 
-    res.status(201).json({
-      success: true,
-      message: `Check your email (${email}) to activate your account!`,
-    });
+    const user = await User.create(userData);
+
+    // Send welcome / activation email asynchronously (safely catch any smtp/network error)
+    try {
+      const activationToken = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.ACTIVATION_SECRET || "munchgud_activation_secret_key_2026",
+        { expiresIn: "1d" }
+      );
+      const activationUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/activation/${activationToken}`;
+
+      await sendmail(
+        "email_verify.hbs",
+        {
+          fullname,
+          activationUrl,
+        },
+        email,
+        "Welcome to MunchGud - Account Created"
+      );
+    } catch (mailErr) {
+      console.log("Email dispatch skipped/failed:", mailErr.message);
+    }
+
+    // Strip password and send tokens
+    const { password: pass, ...safeUser } = user.toJSON();
+    return sendToken(safeUser, 201, res);
   } catch (err) {
     if (err.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
-        message: "User already exists",
+        message: "An account with this email already exists",
       });
     }
 
@@ -88,17 +107,21 @@ exports.updateUser = async (req, res, next) => {
 exports.activateUser = async (req, res, next) => {
   try {
     const { activation_token } = req.body;
-    const newUser = jwt.verify(activation_token, process.env.ACTIVATION_SECRET);
-
-    try {
-      const user = await User.create(newUser);
-      return sendToken(user, 201, res);
-    } catch (err) {
-      if (err.name === "SequelizeUniqueConstraintError") {
-        return next(new ErrorHandler("User already exists", 400));
-      }
-      next(new ErrorHandler(err.message, 500));
+    if (!activation_token) {
+      return next(new ErrorHandler("Activation token is required", 400));
     }
+    const decoded = jwt.verify(activation_token, process.env.ACTIVATION_SECRET || "munchgud_activation_secret_key_2026");
+
+    const email = decoded.email;
+    const existing = await User.findOne({ where: { email } });
+    if (existing) {
+      const { password: pass, ...safeUser } = existing.toJSON();
+      return sendToken(safeUser, 200, res);
+    }
+
+    const user = await User.create(decoded);
+    const { password: pass, ...safeUser } = user.toJSON();
+    return sendToken(safeUser, 201, res);
   } catch (err) {
     next(new ErrorHandler(err.message, 500));
   }
@@ -342,9 +365,35 @@ exports.updateUserInfo = async (req, res, next) => {
   try {
     const { email, fullname, phoneNumber, secondaryNumber } = req.body;
     const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return next(new ErrorHandler("User not found", 404));
+    }
 
-    await user.update({ fullname, email, phoneNumber, secondaryNumber });
-    // await client.del(`user:${req.user.id}`);
+    // Never allow mutating admin's primary email address through updateUserInfo
+    if (user.role === "admin" && email && email.toLowerCase() !== user.email.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin email address cannot be changed through profile update",
+      });
+    }
+
+    // Check if new email is already in use by another user
+    if (email && email.toLowerCase() !== user.email.toLowerCase()) {
+      const existingUser = await User.findOne({ where: { email: email.toLowerCase() } });
+      if (existingUser && existingUser.id !== user.id) {
+        return res.status(400).json({
+          success: false,
+          message: "This email address is already in use by another account",
+        });
+      }
+    }
+
+    await user.update({
+      fullname: fullname !== undefined ? fullname : user.fullname,
+      email: (email && user.role !== "admin") ? email.toLowerCase() : user.email,
+      phoneNumber: phoneNumber !== undefined ? phoneNumber : user.phoneNumber,
+      secondaryNumber: secondaryNumber !== undefined ? secondaryNumber : user.secondaryNumber,
+    });
 
     res.json({ success: true, user });
   } catch (err) {
@@ -470,10 +519,12 @@ exports.getAllUsers = async (req, res, next) => {
     // ✅ Query with pagination & filters
     const { count, rows: users } = await User.findAndCountAll({
       where,
+      attributes: { exclude: ["password", "resetPasswordToken", "resetPasswordExpire"] },
       include: [{ model: Address, as: "addresses" }],
       order: [["createdAt", "DESC"]],
       limit,
       offset,
+      distinct: true,
     });
 
     res.json({

@@ -39,8 +39,8 @@ exports.getDashboardData = async (req, res) => {
       // Total Orders
       Order.count(),
 
-      // Total Customers
-      User.count({ where: { role: "user" } }),
+      // Total Customers / Users
+      User.count(),
 
       // Total Products
       Product.count({ where: { isActive: true } }),
