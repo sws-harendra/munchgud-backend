@@ -10,6 +10,7 @@ const {
   SectionProducts,
   Review,
   Cart,
+  TrendingImage,
   sequelize
 } = require("../models");
 const { upload } = require("../helpers/multer");
@@ -618,7 +619,15 @@ exports.deleteProduct = async (req, res) => {
       transaction
     });
 
-    // 8. Delete ProductVariants
+    // 8. Dissociate TrendingImages
+    if (TrendingImage) {
+      await TrendingImage.update(
+        { productId: null },
+        { where: { productId: product.id }, transaction }
+      );
+    }
+
+    // 9. Delete ProductVariants
     if (variantIds.length > 0) {
       await ProductVariant.destroy({
         where: { id: variantIds },
@@ -626,7 +635,15 @@ exports.deleteProduct = async (req, res) => {
       });
     }
 
-    // 9. Finally destroy the Product itself
+    // Clean up legacy ProductVariants table if present
+    try {
+      await sequelize.query(
+        "DELETE FROM ProductVariants WHERE productId = :productId",
+        { replacements: { productId: product.id }, transaction }
+      );
+    } catch (_) {}
+
+    // 10. Finally destroy the Product itself
     await product.destroy({ transaction });
 
     await transaction.commit();
