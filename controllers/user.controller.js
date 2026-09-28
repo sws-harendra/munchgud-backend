@@ -65,7 +65,7 @@ exports.registerUser = async (req, res, next) => {
           activationUrl,
         },
         email,
-        "Welcome to MunchGud - Account Created"
+        "Welcome to Flazo - Account Created"
       );
     } catch (mailErr) {
       console.log("Email dispatch skipped/failed:", mailErr.message);
