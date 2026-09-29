@@ -21,7 +21,7 @@ const path = require("path");
 
 exports.createProduct = async (req, res) => {
   try {
-    const { categoryId, trending_product, ...rest } = req.body;
+    const { categoryId, categoryName, trending_product, ...rest } = req.body;
 
     // Handle media files from multer
     const mediaFiles = req.files || [];
@@ -34,12 +34,22 @@ exports.createProduct = async (req, res) => {
         : file.filename;
     });
 
-    // Check if category exists
-    const category = await Category.findByPk(categoryId);
-    if (!category) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid categoryId" });
+    // Check or create category dynamically if provided (optional)
+    let resolvedCategoryId = null;
+    if (categoryId && categoryId !== "null" && categoryId !== "undefined") {
+      const category = await Category.findByPk(categoryId);
+      if (category) {
+        resolvedCategoryId = category.id;
+      }
+    }
+    
+    if (!resolvedCategoryId && categoryName && typeof categoryName === "string" && categoryName.trim()) {
+      const trimmedName = categoryName.trim();
+      const [category] = await Category.findOrCreate({
+        where: { name: trimmedName },
+        defaults: { description: trimmedName, parentId: null },
+      });
+      resolvedCategoryId = category.id;
     }
 
     // Convert tags from string to array if using form-data
@@ -51,7 +61,7 @@ exports.createProduct = async (req, res) => {
 
     const product = await Product.create({
       trending_product: trending,
-      categoryId,
+      categoryId: resolvedCategoryId,
       images: mediaPaths, // Store all paths in simple array
       ...rest,
     });

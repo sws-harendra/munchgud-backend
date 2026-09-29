@@ -157,37 +157,77 @@ exports.activateUser = async (req, res, next) => {
 
 exports.registerUserByAdmin = async (req, res, next) => {
   try {
-    const { fullname, email, password, role } = req.body;
-    const existing = await User.findOne({ where: { email } });
+    const { fullname, email, password, role = "user" } = req.body;
+    const rawPhone = req.body.phoneNumber || req.body.phone;
 
-    if (existing) {
-      if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
-        fs.unlinkSync(`uploads/${req.file.filename}`);
-      }
+    if (!fullname || !password) {
       return res.status(400).json({
         success: false,
-        message: "Record already exists",
+        message: "Full name and password are required",
       });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
 
+    const cleanPhone = rawPhone ? smsService.normalizePhoneNumber(rawPhone) : null;
+    if (cleanPhone) {
+      const existingPhone = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+        },
+      });
+      if (existingPhone) {
+        if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+          fs.unlinkSync(`uploads/${req.file.filename}`);
+        }
+        return res.status(400).json({
+          success: false,
+          message: "An account with this mobile number already exists",
+        });
+      }
+    }
+
+    const trimmedEmail = email ? email.trim().toLowerCase() : null;
+    if (trimmedEmail) {
+      const existing = await User.findOne({ where: { email: trimmedEmail } });
+      if (existing) {
+        if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+          fs.unlinkSync(`uploads/${req.file.filename}`);
+        }
+        return res.status(400).json({
+          success: false,
+          message: "An account with this email already exists",
+        });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const avatar = req.file ? req.file.filename : null;
     const userData = {
       fullname,
-      email,
+      email: trimmedEmail || null,
+      phoneNumber: cleanPhone,
       password: hashedPassword,
-      role,
+      role: role || "user",
       avatar,
     };
 
     const user = await User.create(userData);
 
+    const { password: pass, ...safeUser } = user.toJSON();
     res.status(201).json({
       success: true,
       message: `User created successfully!`,
-      user,
+      user: safeUser,
     });
   } catch (err) {
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({
+        success: false,
+        message: "An account with this email or mobile number already exists",
+      });
+    }
     next(new ErrorHandler(err.message, 500));
   }
 };
