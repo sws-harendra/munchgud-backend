@@ -1,11 +1,12 @@
 const path = require("path");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
-const { User, Address } = require("../models");
+const { User, Address, OtpVerification } = require("../models");
 const bcrypt = require("bcryptjs");
 const ErrorHandler = require("../utils/errorHandler");
 const { getRedisClient } = require("../config/redis_config");
 const { Op } = require("sequelize");
+const smsService = require("../helpers/smsService");
 
 // const sendMail = require("../utils/sendMail");
 const { sendToken, generateAccessToken } = require("../helpers/jwtToken");
@@ -13,35 +14,60 @@ const { where } = require("sequelize");
 const { sendmail } = require("../helpers/mailSend");
 // const client = getRedisClient();
 
-// ✅ Register user
+// ✅ Register user (direct/fallback)
 exports.registerUser = async (req, res, next) => {
   try {
     const { fullname, email, password } = req.body;
+    const rawPhone = req.body.phoneNumber || req.body.phone;
 
-    if (!fullname || !email || !password) {
+    if (!fullname || !password) {
       return res.status(400).json({
         success: false,
-        message: "Full name, email and password are required",
+        message: "Full name and password are required",
       });
     }
 
-    const existing = await User.findOne({ where: { email } });
-
-    if (existing) {
-      if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
-        fs.unlinkSync(`uploads/${req.file.filename}`);
-      }
-      return res.status(400).json({
-        success: false,
-        message: "An account with this email already exists",
+    const cleanPhone = rawPhone ? smsService.normalizePhoneNumber(rawPhone) : null;
+    if (cleanPhone) {
+      const existingPhone = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+        },
       });
+      if (existingPhone) {
+        if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+          fs.unlinkSync(`uploads/${req.file.filename}`);
+        }
+        return res.status(400).json({
+          success: false,
+          message: "An account with this mobile number already exists",
+        });
+      }
+    }
+
+    let trimmedEmail = email ? email.trim().toLowerCase() : null;
+    if (trimmedEmail) {
+      const existing = await User.findOne({ where: { email: trimmedEmail } });
+      if (existing) {
+        if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+          fs.unlinkSync(`uploads/${req.file.filename}`);
+        }
+        return res.status(400).json({
+          success: false,
+          message: "An account with this email already exists",
+        });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const avatar = req.file ? req.file.filename : null;
     const userData = {
       fullname,
-      email,
+      email: trimmedEmail || null,
+      phoneNumber: cleanPhone,
       password: hashedPassword,
       avatar,
       role: "user",
@@ -49,26 +75,28 @@ exports.registerUser = async (req, res, next) => {
 
     const user = await User.create(userData);
 
-    // Send welcome / activation email asynchronously (safely catch any smtp/network error)
-    try {
-      const activationToken = jwt.sign(
-        { id: user.id, email: user.email },
-        process.env.ACTIVATION_SECRET || "munchgud_activation_secret_key_2026",
-        { expiresIn: "1d" }
-      );
-      const activationUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/activation/${activationToken}`;
+    // Send welcome email if email provided
+    if (trimmedEmail) {
+      try {
+        const activationToken = jwt.sign(
+          { id: user.id, email: user.email },
+          process.env.ACTIVATION_SECRET || "munchgud_activation_secret_key_2026",
+          { expiresIn: "1d" }
+        );
+        const activationUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/activation/${activationToken}`;
 
-      await sendmail(
-        "email_verify.hbs",
-        {
-          fullname,
-          activationUrl,
-        },
-        email,
-        "Welcome to Flazo - Account Created"
-      );
-    } catch (mailErr) {
-      console.log("Email dispatch skipped/failed:", mailErr.message);
+        await sendmail(
+          "email_verify.hbs",
+          {
+            fullname,
+            activationUrl,
+          },
+          trimmedEmail,
+          "Welcome to Flazo - Account Created"
+        );
+      } catch (mailErr) {
+        console.log("Email dispatch skipped/failed:", mailErr.message);
+      }
     }
 
     // Strip password and send tokens
@@ -78,7 +106,7 @@ exports.registerUser = async (req, res, next) => {
     if (err.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
-        message: "An account with this email already exists",
+        message: "An account with this email or mobile number already exists",
       });
     }
 
@@ -163,33 +191,60 @@ exports.registerUserByAdmin = async (req, res, next) => {
     next(new ErrorHandler(err.message, 500));
   }
 };
-// ✅ Login
+// ✅ Login (Supports Email OR Mobile Number + Password)
 exports.loginUser = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return next(new ErrorHandler("Please provide all fields", 400));
+    const rawIdentifier = (
+      req.body.email ||
+      req.body.phoneNumber ||
+      req.body.phone ||
+      req.body.identifier ||
+      ""
+    )
+      .toString()
+      .trim();
+    const { password } = req.body;
+
+    if (!rawIdentifier || !password) {
+      return next(
+        new ErrorHandler("Please provide email/mobile number and password", 400)
+      );
     }
 
-    console.log(req.body)
+    const isEmail = rawIdentifier.includes("@");
+    let whereCondition;
+
+    if (isEmail) {
+      whereCondition = { email: rawIdentifier.toLowerCase() };
+    } else {
+      const cleanPhone = smsService.normalizePhoneNumber(rawIdentifier);
+      whereCondition = {
+        [Op.or]: [
+          { phoneNumber: cleanPhone },
+          { phoneNumber: Number(cleanPhone) || 0 },
+          { email: rawIdentifier },
+        ],
+      };
+    }
+
     // Fetch WITH password (needed for bcrypt check)
     const user = await User.findOne({
-      where: { email },
+      where: whereCondition,
       include: [
         {
           model: Address,
-          as: "addresses", // must match your association alias
+          as: "addresses",
         },
       ],
     });
+
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "User not found. Please check your credentials.",
       });
     }
 
-    console.log(user);
     // Compare password
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
@@ -201,10 +256,370 @@ exports.loginUser = async (req, res, next) => {
 
     // Remove password before sending response
     const { password: pass, ...safeUser } = user.toJSON();
-    console.log("here==>");
     sendToken(safeUser, 200, res);
   } catch (err) {
     console.log(err);
+    next(new ErrorHandler(err.message, 500));
+  }
+};
+
+// 📱 ✅ Send OTP to Mobile Number (for Registration or Login)
+exports.sendPhoneOtp = async (req, res, next) => {
+  try {
+    const { fullname, email, password, purpose = "register" } = req.body;
+    const rawPhone = req.body.phoneNumber || req.body.phone;
+
+    if (!rawPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Mobile number is required",
+      });
+    }
+
+    const cleanPhone = smsService.normalizePhoneNumber(rawPhone);
+    if (!smsService.isValidIndianPhoneNumber(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid 10-digit mobile number",
+      });
+    }
+
+    let registrationData = null;
+
+    if (purpose === "register") {
+      // Validate mandatory fields for registration
+      if (!fullname || !fullname.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Full name is required",
+        });
+      }
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: "Password must be at least 6 characters long",
+        });
+      }
+
+      // Check if mobile number already exists in Users
+      const existingUserByPhone = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+        },
+      });
+
+      if (existingUserByPhone) {
+        if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+          fs.unlinkSync(`uploads/${req.file.filename}`);
+        }
+        return res.status(400).json({
+          success: false,
+          message: "An account with this mobile number already exists. Please log in.",
+        });
+      }
+
+      // If email is provided, validate format and uniqueness
+      let trimmedEmail = email ? email.trim().toLowerCase() : null;
+      if (trimmedEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+          return res.status(400).json({
+            success: false,
+            message: "Please enter a valid email address",
+          });
+        }
+
+        const existingUserByEmail = await User.findOne({
+          where: { email: trimmedEmail },
+        });
+
+        if (existingUserByEmail) {
+          if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+            fs.unlinkSync(`uploads/${req.file.filename}`);
+          }
+          return res.status(400).json({
+            success: false,
+            message: "An account with this email address already exists.",
+          });
+        }
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const avatar = req.file ? req.file.filename : null;
+
+      registrationData = JSON.stringify({
+        fullname: fullname.trim(),
+        email: trimmedEmail,
+        password: hashedPassword,
+        avatar,
+        role: "user",
+      });
+    } else if (purpose === "login") {
+      // For login OTP, verify user exists
+      const existingUser = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+        },
+      });
+
+      if (!existingUser) {
+        return res.status(404).json({
+          success: false,
+          message: "No account found with this mobile number. Please register first.",
+        });
+      }
+    }
+
+    // Generate 6-digit OTP
+    const otp = smsService.generateOtp(6);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Invalidate prior unverified OTPs for this phone number
+    await OtpVerification.destroy({
+      where: {
+        phoneNumber: cleanPhone,
+        isVerified: false,
+      },
+    });
+
+    // Save pending OTP record
+    await OtpVerification.create({
+      phoneNumber: cleanPhone,
+      otp,
+      otpExpiresAt: expiresAt,
+      registrationData,
+      purpose,
+      isVerified: false,
+      attempts: 0,
+    });
+
+    // Dispatch SMS via configured gateway or dev mock
+    await smsService.sendOtpSms(cleanPhone, otp);
+
+    const isLive = smsService.isLiveSmsConfigured();
+    const isDev = process.env.NODE_ENV !== "production";
+
+    return res.status(200).json({
+      success: true,
+      message: `Verification code sent to +91 ${cleanPhone}`,
+      phoneNumber: cleanPhone,
+      purpose,
+      devOtp: !isLive || isDev ? otp : undefined,
+    });
+  } catch (err) {
+    console.error("sendPhoneOtp Error:", err);
+    next(new ErrorHandler(err.message, 500));
+  }
+};
+
+// 📱 ✅ Verify Phone OTP & Complete Registration / Login
+exports.verifyPhoneOtp = async (req, res, next) => {
+  try {
+    const rawPhone = req.body.phoneNumber || req.body.phone;
+    const { otp } = req.body;
+
+    if (!rawPhone || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Mobile number and OTP code are required",
+      });
+    }
+
+    const cleanPhone = smsService.normalizePhoneNumber(rawPhone);
+    const enteredOtp = String(otp).trim();
+
+    // Look for latest unverified OTP record
+    const otpRecord = await OtpVerification.findOne({
+      where: {
+        phoneNumber: cleanPhone,
+        isVerified: false,
+      },
+      order: [["createdAt", "DESC"]],
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "No active verification code found. Please request a new OTP.",
+      });
+    }
+
+    // Check expiration
+    if (new Date() > new Date(otpRecord.otpExpiresAt)) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification code has expired. Please request a new OTP.",
+      });
+    }
+
+    // Check brute-force attempts
+    if (otpRecord.attempts >= 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+
+    // Validate OTP using helper
+    const isValid = smsService.isOtpValid(enteredOtp, otpRecord.otp);
+    if (!isValid) {
+      otpRecord.attempts += 1;
+      await otpRecord.save();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP code. Please check and try again.",
+      });
+    }
+
+    // Mark OTP verified
+    otpRecord.isVerified = true;
+    await otpRecord.save();
+
+    let user = null;
+
+    // Handle Registration verification
+    if (otpRecord.purpose === "register" && otpRecord.registrationData) {
+      const reg = JSON.parse(otpRecord.registrationData);
+
+      // Check if user already got created
+      user = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+        },
+      });
+
+      if (!user) {
+        user = await User.create({
+          fullname: reg.fullname,
+          email: reg.email || null,
+          password: reg.password,
+          phoneNumber: cleanPhone,
+          avatar: reg.avatar || null,
+          role: reg.role || "user",
+        });
+
+        // Optionally send welcome email if email was provided
+        if (reg.email) {
+          try {
+            await sendmail(
+              "email_verify.hbs",
+              {
+                fullname: reg.fullname,
+                activationUrl: `${process.env.CLIENT_URL || "http://localhost:3000"}`,
+              },
+              reg.email,
+              "Welcome to Flazo - Account Created"
+            );
+          } catch (mailErr) {
+            console.log("Welcome email notification skipped:", mailErr.message);
+          }
+        }
+      }
+    } else {
+      // Handle Login OTP verification
+      user = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+        },
+        include: [{ model: Address, as: "addresses" }],
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User account not found.",
+        });
+      }
+    }
+
+    // Send JWT token and cookie
+    const { password: pass, ...safeUser } = user.toJSON();
+    return sendToken(safeUser, 200, res);
+  } catch (err) {
+    console.error("verifyPhoneOtp Error:", err);
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({
+        success: false,
+        message: "An account with this email or mobile number already exists.",
+      });
+    }
+    next(new ErrorHandler(err.message, 500));
+  }
+};
+
+// 📱 ✅ Resend Phone OTP
+exports.resendPhoneOtp = async (req, res, next) => {
+  try {
+    const rawPhone = req.body.phoneNumber || req.body.phone;
+    if (!rawPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Mobile number is required to resend OTP",
+      });
+    }
+
+    const cleanPhone = smsService.normalizePhoneNumber(rawPhone);
+    if (!smsService.isValidIndianPhoneNumber(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid 10-digit mobile number",
+      });
+    }
+
+    // Look for previous pending record
+    const otpRecord = await OtpVerification.findOne({
+      where: {
+        phoneNumber: cleanPhone,
+        isVerified: false,
+      },
+      order: [["createdAt", "DESC"]],
+    });
+
+    const newOtp = smsService.generateOtp(6);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    if (otpRecord) {
+      otpRecord.otp = newOtp;
+      otpRecord.otpExpiresAt = expiresAt;
+      otpRecord.attempts = 0;
+      await otpRecord.save();
+    } else {
+      await OtpVerification.create({
+        phoneNumber: cleanPhone,
+        otp: newOtp,
+        otpExpiresAt: expiresAt,
+        purpose: "login",
+        isVerified: false,
+        attempts: 0,
+      });
+    }
+
+    await smsService.sendOtpSms(cleanPhone, newOtp);
+
+    const isLive = smsService.isLiveSmsConfigured();
+    const isDev = process.env.NODE_ENV !== "production";
+
+    return res.status(200).json({
+      success: true,
+      message: `New verification code sent to +91 ${cleanPhone}`,
+      phoneNumber: cleanPhone,
+      devOtp: !isLive || isDev ? newOtp : undefined,
+    });
+  } catch (err) {
+    console.error("resendPhoneOtp Error:", err);
     next(new ErrorHandler(err.message, 500));
   }
 };

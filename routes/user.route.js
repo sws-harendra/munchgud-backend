@@ -28,6 +28,36 @@ router.post(
 router.post("/activation", catchAsyncErrors(userController.activateUser));
 router.post("/login-user", catchAsyncErrors(userController.loginUser));
 
+// 📱 Phone Number OTP Authentication Routes
+router.post(
+  "/auth/send-otp",
+  upload.single("file"),
+  catchAsyncErrors(userController.sendPhoneOtp)
+);
+router.post(
+  "/auth/verify-otp",
+  catchAsyncErrors(userController.verifyPhoneOtp)
+);
+router.post(
+  "/auth/resend-otp",
+  catchAsyncErrors(userController.resendPhoneOtp)
+);
+
+// Fallback direct paths
+router.post(
+  "/send-otp",
+  upload.single("file"),
+  catchAsyncErrors(userController.sendPhoneOtp)
+);
+router.post(
+  "/verify-otp",
+  catchAsyncErrors(userController.verifyPhoneOtp)
+);
+router.post(
+  "/resend-otp",
+  catchAsyncErrors(userController.resendPhoneOtp)
+);
+
 router.post(
   "/forgot",
   catchAsyncErrors(userController.forgotPassword)
