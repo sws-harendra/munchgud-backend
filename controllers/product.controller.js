@@ -687,7 +687,13 @@ exports.getTrendingProducts = async (req, res) => {
     const products = await Product.findAll({
       where: {
         trending_product: true,
+        isActive: true,
       },
+      include: [
+        { model: Category, attributes: ["id", "name"] },
+        { model: ProductVariant, as: "ProductVariants" },
+      ],
+      order: [["updatedAt", "DESC"]],
     });
     res.status(200).json({ success: true, products });
   } catch (error) {
