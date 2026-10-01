@@ -59,11 +59,25 @@ exports.createProduct = async (req, res) => {
 
     const trending = trending_product === "true";
 
+    let parsedPlatformLinks = [];
+    if (rest.platformLinks) {
+      try {
+        parsedPlatformLinks =
+          typeof rest.platformLinks === "string"
+            ? JSON.parse(rest.platformLinks)
+            : rest.platformLinks;
+        if (!Array.isArray(parsedPlatformLinks)) parsedPlatformLinks = [];
+      } catch (e) {
+        parsedPlatformLinks = [];
+      }
+    }
+
     const product = await Product.create({
       trending_product: trending,
       categoryId: resolvedCategoryId,
       images: mediaPaths, // Store all paths in simple array
       ...rest,
+      platformLinks: parsedPlatformLinks,
     });
 
     const productWithCategory = await Product.findByPk(product.id, {
@@ -514,6 +528,19 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
+    let parsedPlatformLinks = undefined;
+    if (req.body.platformLinks !== undefined) {
+      try {
+        parsedPlatformLinks =
+          typeof req.body.platformLinks === "string"
+            ? JSON.parse(req.body.platformLinks)
+            : req.body.platformLinks;
+        if (!Array.isArray(parsedPlatformLinks)) parsedPlatformLinks = [];
+      } catch (e) {
+        parsedPlatformLinks = [];
+      }
+    }
+
     // Prepare update data
     const updateData = {
       name: req.body.name,
@@ -527,6 +554,7 @@ exports.updateProduct = async (req, res) => {
       paymentMethods: req.body.paymentMethods,
       varientValue: req?.body?.varientValue,
       images: finalMedia, // This now contains both images and videos
+      ...(parsedPlatformLinks !== undefined ? { platformLinks: parsedPlatformLinks } : {}),
     };
 
     // Remove undefined/null values

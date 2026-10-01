@@ -97,6 +97,11 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: "piece",
         allowNull: true,
       },
+      platformLinks: {
+        type: DataTypes.JSON,
+        defaultValue: [],
+        allowNull: true,
+      },
     },
     {
       sequelize,
