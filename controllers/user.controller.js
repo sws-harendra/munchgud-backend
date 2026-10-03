@@ -443,15 +443,11 @@ exports.sendPhoneOtp = async (req, res, next) => {
     // Dispatch SMS via configured gateway or dev mock
     await smsService.sendOtpSms(cleanPhone, otp);
 
-    const isLive = smsService.isLiveSmsConfigured();
-    const isDev = process.env.NODE_ENV !== "production";
-
     return res.status(200).json({
       success: true,
       message: `Verification code sent to +91 ${cleanPhone}`,
       phoneNumber: cleanPhone,
       purpose,
-      devOtp: !isLive || isDev ? otp : undefined,
     });
   } catch (err) {
     console.error("sendPhoneOtp Error:", err);
@@ -649,14 +645,10 @@ exports.resendPhoneOtp = async (req, res, next) => {
 
     await smsService.sendOtpSms(cleanPhone, newOtp);
 
-    const isLive = smsService.isLiveSmsConfigured();
-    const isDev = process.env.NODE_ENV !== "production";
-
     return res.status(200).json({
       success: true,
       message: `New verification code sent to +91 ${cleanPhone}`,
       phoneNumber: cleanPhone,
-      devOtp: !isLive || isDev ? newOtp : undefined,
     });
   } catch (err) {
     console.error("resendPhoneOtp Error:", err);

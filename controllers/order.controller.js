@@ -121,7 +121,7 @@ const createOrder = async (req, res) => {
         addressId,
         totalAmount,
         paymentMethod,
-        status: paymentMethod === "cod" ? "confirmed" : "pending",
+        status: "confirmed",
         paymentStatus: paymentMethod === "cod" ? "pending" : "paid",
       },
       { transaction: t }
@@ -190,7 +190,7 @@ const createOrder = async (req, res) => {
           transactionId,
           amount: totalAmount,
           paymentMethod,
-          status: "initiated",
+          status: transactionId ? "success" : "initiated",
         },
         { transaction: t }
       );
