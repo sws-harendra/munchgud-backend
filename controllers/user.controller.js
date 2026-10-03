@@ -997,16 +997,30 @@ exports.deleteUser = async (req, res, next) => {
 
 exports.logout = async (req, res) => {
   try {
-    const token = req.cookies.refreshToken || req.body.refreshToken;
+    const isProd = process.env.NODE_ENV === "production";
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+      path: "/",
+    };
+
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
+    res.clearCookie("token", cookieOptions);
+
+    res.clearCookie("accessToken", { ...cookieOptions, sameSite: "Strict" });
+    res.clearCookie("refreshToken", { ...cookieOptions, sameSite: "Strict" });
+    res.clearCookie("token", { ...cookieOptions, sameSite: "Strict" });
 
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
-    res.json({ message: "Logged out successfully" });
+    res.clearCookie("token");
+
+    return res.status(200).json({ success: true, message: "Logged out successfully" });
   } catch (error) {
     console.error("Logout error:", error);
-    res.clearCookie("accessToken");
-    res.clearCookie("refreshToken");
-    res.json({ message: "Logged out successfully" });
+    return res.status(200).json({ success: true, message: "Logged out successfully" });
   }
 };
 

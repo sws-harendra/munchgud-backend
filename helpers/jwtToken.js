@@ -4,17 +4,21 @@ const sendToken = async (user, statusCode, res) => {
   const refreshToken = generateRefreshToken(user);
   const accessToken = generateAccessToken(user);
 
-  res.cookie("accessToken", accessToken, {
+  const isProd = process.env.NODE_ENV === "production";
+  const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    path: "/",
+  };
+
+  res.cookie("accessToken", accessToken, {
+    ...cookieOptions,
     maxAge: 12 * 60 * 60 * 1000, // 12 hours
   });
 
   res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    ...cookieOptions,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
   res.status(statusCode).json({
