@@ -42,6 +42,14 @@ router.post(
   "/auth/resend-otp",
   catchAsyncErrors(userController.resendPhoneOtp)
 );
+router.post(
+  "/auth/verify-reset-otp",
+  catchAsyncErrors(userController.verifyResetOtp)
+);
+router.post(
+  "/auth/reset-password-phone",
+  catchAsyncErrors(userController.resetPasswordWithPhone)
+);
 
 // Fallback direct paths
 router.post(
@@ -56,6 +64,14 @@ router.post(
 router.post(
   "/resend-otp",
   catchAsyncErrors(userController.resendPhoneOtp)
+);
+router.post(
+  "/verify-reset-otp",
+  catchAsyncErrors(userController.verifyResetOtp)
+);
+router.post(
+  "/reset-password-phone",
+  catchAsyncErrors(userController.resetPasswordWithPhone)
 );
 
 router.post(

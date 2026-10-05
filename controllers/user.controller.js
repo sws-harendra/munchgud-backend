@@ -398,8 +398,8 @@ exports.sendPhoneOtp = async (req, res, next) => {
         avatar,
         role: "user",
       });
-    } else if (purpose === "login") {
-      // For login OTP, verify user exists
+    } else if (purpose === "login" || purpose === "forgot_password" || purpose === "reset_password") {
+      // For login and password reset, verify user exists
       const existingUser = await User.findOne({
         where: {
           [Op.or]: [
@@ -412,7 +412,7 @@ exports.sendPhoneOtp = async (req, res, next) => {
       if (!existingUser) {
         return res.status(404).json({
           success: false,
-          message: "No account found with this mobile number. Please register first.",
+          message: "No account found with this mobile number. Please check the number or register.",
         });
       }
     }
@@ -574,6 +574,42 @@ exports.verifyPhoneOtp = async (req, res, next) => {
           }
         }
       }
+    } else if (otpRecord.purpose === "forgot_password" || req.body.purpose === "forgot_password") {
+      user = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User account not found.",
+        });
+      }
+
+      // Generate secure reset token for password update
+      const crypto = require("crypto");
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
+
+      user.resetPasswordToken = hashedToken;
+      user.resetPasswordExpire = new Date(Date.now() + 15 * 60 * 1000);
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "OTP verified successfully. Please set your new password.",
+        resetToken,
+        phoneNumber: cleanPhone,
+        purpose: "forgot_password",
+      });
     } else {
       // Handle Login OTP verification
       user = await User.findOne({
@@ -801,6 +837,215 @@ exports.resetPassword = async (req, res, next) => {
     });
 
   } catch (err) {
+    next(new ErrorHandler(err.message, 500));
+  }
+};
+
+// 📱 ✅ Verify Forgot Password OTP & Issue Reset Token
+exports.verifyResetOtp = async (req, res, next) => {
+  try {
+    const rawPhone = req.body.phoneNumber || req.body.phone;
+    const { otp } = req.body;
+
+    if (!rawPhone || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Mobile number and OTP code are required",
+      });
+    }
+
+    const cleanPhone = smsService.normalizePhoneNumber(rawPhone);
+    const enteredOtp = String(otp).trim();
+
+    // Look for latest unverified OTP record
+    const otpRecord = await OtpVerification.findOne({
+      where: {
+        phoneNumber: cleanPhone,
+        isVerified: false,
+      },
+      order: [["createdAt", "DESC"]],
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "No active verification code found. Please request a new OTP.",
+      });
+    }
+
+    // Check expiration
+    if (new Date() > new Date(otpRecord.otpExpiresAt)) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification code has expired. Please request a new OTP.",
+      });
+    }
+
+    // Check brute-force attempts
+    if (otpRecord.attempts >= 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+
+    // Validate OTP using helper
+    const isValid = smsService.isOtpValid(enteredOtp, otpRecord.otp);
+    if (!isValid) {
+      otpRecord.attempts += 1;
+      await otpRecord.save();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP code. Please check and try again.",
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [
+          { phoneNumber: cleanPhone },
+          { phoneNumber: Number(cleanPhone) || 0 },
+        ],
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with this mobile number.",
+      });
+    }
+
+    // Mark OTP verified
+    otpRecord.isVerified = true;
+    await otpRecord.save();
+
+    // Generate secure reset token
+    const crypto = require("crypto");
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified successfully. You can now set your new password.",
+      resetToken,
+      phoneNumber: cleanPhone,
+    });
+  } catch (err) {
+    console.error("verifyResetOtp Error:", err);
+    next(new ErrorHandler(err.message, 500));
+  }
+};
+
+// 📱 ✅ Reset Password with Verified Phone & Reset Token
+exports.resetPasswordWithPhone = async (req, res, next) => {
+  try {
+    const rawPhone = req.body.phoneNumber || req.body.phone;
+    const { resetToken, password, confirmPassword } = req.body;
+
+    if (!rawPhone || !password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number, New password, and Confirm password are required.",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters long.",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match.",
+      });
+    }
+
+    const cleanPhone = smsService.normalizePhoneNumber(rawPhone);
+
+    let user = null;
+    if (resetToken) {
+      const crypto = require("crypto");
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
+
+      user = await User.findOne({
+        where: {
+          [Op.or]: [
+            { phoneNumber: cleanPhone },
+            { phoneNumber: Number(cleanPhone) || 0 },
+          ],
+          resetPasswordToken: hashedToken,
+          resetPasswordExpire: {
+            [Op.gt]: new Date(),
+          },
+        },
+      });
+    }
+
+    if (!user) {
+      // Fallback: check if OTP was verified within last 15 minutes for this phone
+      const recentOtp = await OtpVerification.findOne({
+        where: {
+          phoneNumber: cleanPhone,
+          isVerified: true,
+          updatedAt: {
+            [Op.gt]: new Date(Date.now() - 15 * 60 * 1000),
+          },
+        },
+        order: [["updatedAt", "DESC"]],
+      });
+
+      if (recentOtp) {
+        user = await User.findOne({
+          where: {
+            [Op.or]: [
+              { phoneNumber: cleanPhone },
+              { phoneNumber: Number(cleanPhone) || 0 },
+            ],
+          },
+        });
+      }
+    }
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Reset session has expired or is invalid. Please request a new OTP.",
+      });
+    }
+
+    // Hash and update password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+    await user.save();
+
+    // Clean up OTP verifications for this phone
+    await OtpVerification.destroy({
+      where: { phoneNumber: cleanPhone },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully! You can now login with your new password.",
+    });
+  } catch (err) {
+    console.error("resetPasswordWithPhone Error:", err);
     next(new ErrorHandler(err.message, 500));
   }
 };
