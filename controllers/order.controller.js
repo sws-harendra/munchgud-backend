@@ -1,4 +1,5 @@
 const { sendmail } = require("../helpers/mailSend");
+const smsService = require("../helpers/smsService");
 const { ServiceArea } = require("../models");
 
 const hbs = require("hbs");
@@ -236,6 +237,29 @@ const createOrder = async (req, res) => {
       );
     } catch (emailError) {
       console.error("Failed to send email:", emailError);
+    }
+
+    // 9️⃣ Send SMS Notifications via Adcrux Media (DLT Approved Templates)
+    const customerPhone = user?.phoneNumber || orderAddress?.phone;
+    if (customerPhone) {
+      try {
+        if (paymentMethod !== "cod" && transactionId) {
+          // Template 3: Payment Successful
+          await smsService.sendTemplateSms(customerPhone, "PAYMENT_SUCCESS", {
+            amount: totalAmount,
+            orderId: order.id,
+          });
+        }
+        // Template 2: Order Placed
+        await smsService.sendTemplateSms(customerPhone, "ORDER_PLACED", {
+          orderId: order.id,
+          amount: totalAmount,
+          expectedDelivery: "3-5 business days",
+          trackingNumber: order.id,
+        });
+      } catch (smsErr) {
+        console.error("Failed to send order SMS:", smsErr.message);
+      }
     }
 
     res.status(201).json({

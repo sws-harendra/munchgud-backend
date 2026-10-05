@@ -419,7 +419,7 @@ exports.sendPhoneOtp = async (req, res, next) => {
 
     // Generate 6-digit OTP
     const otp = smsService.generateOtp(6);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes (matching FLAZO DLT template)
 
     // Invalidate prior unverified OTPs for this phone number
     await OtpVerification.destroy({
@@ -441,7 +441,20 @@ exports.sendPhoneOtp = async (req, res, next) => {
     });
 
     // Dispatch SMS via configured gateway or dev mock
-    await smsService.sendOtpSms(cleanPhone, otp);
+    const smsResult = await smsService.sendOtpSms(cleanPhone, otp, purpose);
+
+    if (smsResult && !smsResult.success) {
+      const isCreditIssue = smsResult.error && smsResult.error.toLowerCase().includes("credit");
+      const clientMessage = isCreditIssue
+        ? "Unable to send SMS: SMS gateway balance is exhausted. Please check your SMS panel credits."
+        : `Unable to send verification SMS: ${smsResult.error || "Please try again later"}`;
+
+      return res.status(400).json({
+        success: false,
+        message: clientMessage,
+        phoneNumber: cleanPhone,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -625,7 +638,7 @@ exports.resendPhoneOtp = async (req, res, next) => {
     });
 
     const newOtp = smsService.generateOtp(6);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes (matching FLAZO DLT template)
 
     if (otpRecord) {
       otpRecord.otp = newOtp;
@@ -643,7 +656,20 @@ exports.resendPhoneOtp = async (req, res, next) => {
       });
     }
 
-    await smsService.sendOtpSms(cleanPhone, newOtp);
+    const smsResult = await smsService.sendOtpSms(cleanPhone, newOtp, otpRecord ? otpRecord.purpose : "login");
+
+    if (smsResult && !smsResult.success) {
+      const isCreditIssue = smsResult.error && smsResult.error.toLowerCase().includes("credit");
+      const clientMessage = isCreditIssue
+        ? "Unable to send SMS: SMS gateway balance is exhausted. Please check your SMS panel credits."
+        : `Unable to send verification SMS: ${smsResult.error || "Please try again later"}`;
+
+      return res.status(400).json({
+        success: false,
+        message: clientMessage,
+        phoneNumber: cleanPhone,
+      });
+    }
 
     return res.status(200).json({
       success: true,

@@ -1,6 +1,7 @@
 "use strict";
 
 const axios = require("axios");
+const { getFormattedTemplate } = require("../config/smsTemplates");
 
 /**
  * Normalizes phone numbers to a clean 10-digit Indian mobile number format.
@@ -32,7 +33,10 @@ function isValidIndianPhoneNumber(phoneNumber) {
  */
 function isLiveSmsConfigured() {
   return Boolean(
-    process.env.FAST2SMS_API_KEY ||
+    process.env.ADCRUX_API_KEY ||
+      process.env.ADCRUX_AUTH_KEY ||
+      (process.env.ADCRUX_USERNAME && process.env.ADCRUX_PASSWORD) ||
+      process.env.FAST2SMS_API_KEY ||
       (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) ||
       process.env.MSG91_AUTH_KEY
   );
@@ -49,13 +53,96 @@ function generateOtp(length = 6) {
 }
 
 /**
- * Sends OTP via configured live SMS gateway (Fast2SMS, Twilio, MSG91)
+ * Sends OTP via configured live SMS gateway (Adcrux Media, Fast2SMS, Twilio, MSG91)
  * or falls back to clear development console output if keys are not set.
+ *
+ * @param {string} phoneNumber - 10-digit phone number
+ * @param {string} otp - 4 or 6-digit OTP code
+ * @param {string|object} options - Optional purpose (e.g. "OTP_VERIFICATION", "LOGIN_OTP") or options object
  */
-async function sendOtpSms(phoneNumber, otp) {
+async function sendOtpSms(phoneNumber, otp, options = {}) {
   const cleanPhone = normalizePhoneNumber(phoneNumber);
+  const purpose =
+    typeof options === "string"
+      ? options
+      : options?.purpose || options?.templateKey || "OTP_VERIFICATION";
 
-  // 1. FAST2SMS Integration (Most popular Indian SMS gateway for Quick OTPs)
+  // Resolve message text and DLT template ID from config/smsTemplates.js
+  const templateInfo = getFormattedTemplate(purpose, { otp });
+  const messageText = templateInfo.text;
+  const dltTeId = templateInfo.dltTemplateId || process.env.ADCRUX_DLT_TE_ID || "";
+
+  // 1. ADCRUX MEDIA SMS Integration
+  const adcruxKey = process.env.ADCRUX_API_KEY || process.env.ADCRUX_AUTH_KEY;
+  const adcruxUser = process.env.ADCRUX_USERNAME || process.env.ADCRUX_USER;
+  const adcruxPass = process.env.ADCRUX_PASSWORD || process.env.ADCRUX_PASS;
+
+  if (adcruxKey || (adcruxUser && adcruxPass)) {
+    try {
+      console.log(`[SMS Service] Sending live OTP to +91${cleanPhone} via Adcrux Media (${templateInfo.title || templateInfo.templateName || "OTP"})...`);
+      const apiUrl = process.env.ADCRUX_API_URL || "http://web.adcruxmedia.in/vb/apikey.php";
+      const senderId = process.env.ADCRUX_SENDER_ID || "FLAZOP";
+
+      // Adcrux Media (Vobolo Gateway) exact parameters
+      const params = {
+        apikey: adcruxKey,
+        senderid: senderId,
+        number: cleanPhone,
+        message: messageText,
+      };
+
+      if (dltTeId) {
+        params.templateid = dltTeId;
+      }
+
+      const formBody = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        formBody.append(key, value);
+      }
+
+      let response;
+      try {
+        response = await axios.post(apiUrl, formBody.toString(), {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          timeout: 10000,
+        });
+      } catch (postErr) {
+        // Fallback to GET if POST request fails
+        response = await axios.get(apiUrl, {
+          params,
+          timeout: 10000,
+        });
+      }
+
+      console.log("[Adcrux Media Response]:", response.data);
+      if (response.data && (response.data.status === "false" || response.data.status === false)) {
+        console.error("[Adcrux Media API Error]:", response.data.description || response.data);
+        return {
+          success: false,
+          provider: "adcrux",
+          error: response.data.description || "Adcrux Gateway error",
+        };
+      }
+
+      return {
+        success: true,
+        provider: "adcrux",
+        data: response.data,
+      };
+    } catch (err) {
+      console.error(
+        "[Adcrux Media Error]:",
+        err.response?.data || err.message
+      );
+      return {
+        success: false,
+        provider: "adcrux",
+        error: err.response?.data?.description || err.message,
+      };
+    }
+  }
+
+  // 2. FAST2SMS Integration (Most popular Indian SMS gateway for Quick OTPs)
   if (process.env.FAST2SMS_API_KEY) {
     try {
       console.log(`[SMS Service] Sending live OTP to +91${cleanPhone} via Fast2SMS...`);
@@ -176,8 +263,8 @@ async function sendOtpSms(phoneNumber, otp) {
   console.log(`📞 Recipient Mobile : +91 ${cleanPhone}`);
   console.log(`🔐 Verification OTP : ${otp}`);
   console.log(`⏱️  Validity        : 10 minutes`);
-  console.log(`💬 Message Preview  : Your Flazo verification code is ${otp}. Valid for 10 minutes.`);
-  console.log("💡 To enable real SMS on live deployment, simply add FAST2SMS_API_KEY in munchgud-backend/.env");
+  console.log(`💬 Message Preview  : ${messageText}`);
+  console.log("💡 To enable real SMS on live deployment, add ADCRUX_API_KEY in munchgud-backend/.env");
   console.log("========================================================\n");
 
   return {
@@ -210,11 +297,77 @@ function isOtpValid(enteredOtp, expectedOtp) {
   return false;
 }
 
+/**
+ * Sends any template-based SMS (Order confirmation, notification, etc.)
+ */
+async function sendTemplateSms(phoneNumber, templateKey, variables = {}) {
+  const cleanPhone = normalizePhoneNumber(phoneNumber);
+  const templateInfo = getFormattedTemplate(templateKey, variables);
+  const messageText = templateInfo.text;
+  const dltTeId = templateInfo.dltTemplateId || process.env.ADCRUX_DLT_TE_ID || "";
+
+  const adcruxKey = process.env.ADCRUX_API_KEY || process.env.ADCRUX_AUTH_KEY;
+  const adcruxUser = process.env.ADCRUX_USERNAME || process.env.ADCRUX_USER;
+  const adcruxPass = process.env.ADCRUX_PASSWORD || process.env.ADCRUX_PASS;
+
+  if (adcruxKey || (adcruxUser && adcruxPass)) {
+    try {
+      console.log(`[SMS Service] Sending SMS to +91${cleanPhone} via Adcrux Media (${templateInfo.title || templateInfo.templateName || "SMS"})...`);
+      const apiUrl = process.env.ADCRUX_API_URL || "http://web.adcruxmedia.in/vb/apikey.php";
+      const senderId = process.env.ADCRUX_SENDER_ID || "FLAZOP";
+
+      const params = {
+        apikey: adcruxKey,
+        senderid: senderId,
+        number: cleanPhone,
+        message: messageText,
+      };
+
+      if (dltTeId) {
+        params.templateid = dltTeId;
+      }
+
+      const formBody = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        formBody.append(key, value);
+      }
+
+      let response;
+      try {
+        response = await axios.post(apiUrl, formBody.toString(), {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          timeout: 10000,
+        });
+      } catch (postErr) {
+        response = await axios.get(apiUrl, { params, timeout: 10000 });
+      }
+
+      console.log("[Adcrux Media Response]:", response.data);
+      if (response.data && (response.data.status === "false" || response.data.status === false)) {
+        console.error("[Adcrux Media API Error]:", response.data.description || response.data);
+        return {
+          success: false,
+          provider: "adcrux",
+          error: response.data.description || "Adcrux Gateway error",
+        };
+      }
+      return { success: true, provider: "adcrux", data: response.data };
+    } catch (err) {
+      console.error("[Adcrux Media Error]:", err.response?.data || err.message);
+      return { success: false, provider: "adcrux", error: err.response?.data?.description || err.message };
+    }
+  }
+
+  console.log(`📱 [SMS SERVICE DEV LOG] To: +91${cleanPhone} | ${templateInfo.templateName}: ${messageText}`);
+  return { success: true, simulated: true, message: messageText };
+}
+
 module.exports = {
   normalizePhoneNumber,
   isValidIndianPhoneNumber,
   isLiveSmsConfigured,
   generateOtp,
   sendOtpSms,
+  sendTemplateSms,
   isOtpValid,
 };
