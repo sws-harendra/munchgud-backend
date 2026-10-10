@@ -12,8 +12,8 @@ module.exports = (sequelize, DataTypes) => {
        });
       Product.belongsTo(models.Artist, { foreignKey: "artistId" });
 
-      // If you have a Reviews table:
-      // Product.hasMany(models.Review, { foreignKey: "productId" });
+      // Reviews table association
+      Product.hasMany(models.Review, { foreignKey: "productId", as: "reviewsList" });
     }
   }
   Product.init(
