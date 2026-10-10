@@ -49,7 +49,7 @@ router.delete(
 router.get(
   "/admin/all-reviews",
   isAuthenticated,
-  isAdmin,
+  isAdmin("admin", "Admin"),
   catchAsyncErrors(reviewController.getAllReviewsAdmin)
 );
 
@@ -57,7 +57,7 @@ router.get(
 router.post(
   "/admin/add-review",
   isAuthenticated,
-  isAdmin,
+  isAdmin("admin", "Admin"),
   catchAsyncErrors(reviewController.createAdminReview)
 );
 
@@ -65,7 +65,7 @@ router.post(
 router.delete(
   "/admin/delete-review/:id",
   isAuthenticated,
-  isAdmin,
+  isAdmin("admin", "Admin"),
   catchAsyncErrors(reviewController.deleteReview)
 );
 
