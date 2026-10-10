@@ -23,8 +23,10 @@ router.get("/options", variantController.getAllVariantOptions);
 // Product Variants
 router.post(
   "/products/:productId/variants",
-  upload.single("images"), // "media" field name, max 10 files
-
+  upload.fields([
+    { name: "images", maxCount: 10 },
+    { name: "image", maxCount: 1 },
+  ]),
   variantController.createProductVariant
 );
 router.get(
@@ -33,10 +35,13 @@ router.get(
 );
 router.delete("/variants/:id", variantController.deleteProductVariant);
 
-// Update variant (with optional image upload)
+// Update variant (with optional image uploads)
 router.put(
   "/variants/:id",
-  upload.single("image"),
+  upload.fields([
+    { name: "images", maxCount: 10 },
+    { name: "image", maxCount: 1 },
+  ]),
   variantController.updateProductVariant
 );
 // Variant Categories

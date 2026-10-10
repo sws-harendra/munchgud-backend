@@ -254,7 +254,16 @@ exports.getAllProductsforAdmin = async (req, res) => {
         {
           model: ProductVariant,
           as: "ProductVariants",
-          attributes: ["id", "sku", "price", "stock", "image", "isActive"],
+          attributes: [
+            "id",
+            "sku",
+            "price",
+            "originalPrice",
+            "stock",
+            "image",
+            "images",
+            "isActive",
+          ],
           include: [
             {
               model: VariantOption,
@@ -325,7 +334,16 @@ exports.getProductById = async (req, res) => {
         {
           model: ProductVariant,
           as: "ProductVariants",
-          attributes: ["id", "sku", "price", "stock", "image", "isActive"],
+          attributes: [
+            "id",
+            "sku",
+            "price",
+            "originalPrice",
+            "stock",
+            "image",
+            "images",
+            "isActive",
+          ],
           include: [
             {
               model: VariantOption,

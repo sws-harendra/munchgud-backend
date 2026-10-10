@@ -49,10 +49,21 @@ exports.getAllVariantOptions = async (req, res) => {
 exports.createProductVariant = async (req, res) => {
   try {
     const { productId } = req.params;
-    const image = req.file ? req.file.filename : null;
 
-    console.log(req.body);
-    const { price, stock, optionIds } = req.body;
+    // Handle files from upload.fields or upload.single
+    let mediaPaths = [];
+    if (req.files) {
+      if (req.files.images && req.files.images.length > 0) {
+        mediaPaths.push(...req.files.images.map((f) => f.filename));
+      }
+      if (req.files.image && req.files.image.length > 0) {
+        mediaPaths.push(...req.files.image.map((f) => f.filename));
+      }
+    } else if (req.file) {
+      mediaPaths.push(req.file.filename);
+    }
+
+    const { price, originalPrice, stock, sku, optionIds, optionId } = req.body;
 
     // Check if product exists
     const product = await Product.findByPk(productId);
@@ -66,14 +77,30 @@ exports.createProductVariant = async (req, res) => {
     // Create the variant
     const variant = await ProductVariant.create({
       productId,
-      price,
-      stock,
-      image: image,
+      sku: sku && sku.trim() !== "" ? sku.trim() : undefined,
+      price: price || 0,
+      originalPrice: originalPrice ? originalPrice : null,
+      stock: stock !== undefined ? Number(stock) : 0,
+      image: mediaPaths[0] || null,
+      images: mediaPaths,
     });
 
     // Associate with options if provided
-    if (optionIds && optionIds.length > 0) {
-      await variant.setOptions(optionIds);
+    let targetOptionIds = [];
+    if (optionIds) {
+      try {
+        targetOptionIds =
+          typeof optionIds === "string" ? JSON.parse(optionIds) : optionIds;
+        if (!Array.isArray(targetOptionIds)) targetOptionIds = [targetOptionIds];
+      } catch {
+        targetOptionIds = [optionIds];
+      }
+    } else if (optionId) {
+      targetOptionIds = [optionId];
+    }
+
+    if (targetOptionIds.length > 0) {
+      await variant.setOptions(targetOptionIds);
     }
 
     // Query the created variant with proper includes
@@ -82,7 +109,7 @@ exports.createProductVariant = async (req, res) => {
         {
           model: VariantOption,
           as: "options",
-          through: { attributes: [] }, // Exclude junction table attributes
+          through: { attributes: [] },
           include: [
             {
               model: VariantCategory,
@@ -108,12 +135,29 @@ exports.createProductVariant = async (req, res) => {
 };
 
 exports.getProductVariants = async (req, res) => {
-  const { productId } = req.params;
-  const variants = await ProductVariant.findAll({
-    where: { productId },
-    include: { model: VariantOption, as: "options" },
-  });
-  res.json({ success: true, data: variants });
+  try {
+    const { productId } = req.params;
+    const variants = await ProductVariant.findAll({
+      where: { productId },
+      include: [
+        {
+          model: VariantOption,
+          as: "options",
+          through: { attributes: [] },
+          include: [
+            {
+              model: VariantCategory,
+              as: "category",
+            },
+          ],
+        },
+      ],
+    });
+    res.json({ success: true, data: variants });
+  } catch (error) {
+    console.error("Error fetching product variants:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 exports.deleteProductVariant = async (req, res) => {
@@ -135,14 +179,22 @@ exports.deleteProductVariant = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 exports.updateProductVariant = async (req, res) => {
   try {
     const { id } = req.params;
-    const { sku, price, stock, isActive } = req.body;
-    let image;
+    const { sku, price, originalPrice, stock, isActive } = req.body;
 
-    if (req.file) {
-      image = req.file.filename; // if you are handling file uploads (e.g. Multer)
+    let mediaPaths = [];
+    if (req.files) {
+      if (req.files.images && req.files.images.length > 0) {
+        mediaPaths.push(...req.files.images.map((f) => f.filename));
+      }
+      if (req.files.image && req.files.image.length > 0) {
+        mediaPaths.push(...req.files.image.map((f) => f.filename));
+      }
+    } else if (req.file) {
+      mediaPaths.push(req.file.filename);
     }
 
     const variant = await ProductVariant.findByPk(id);
@@ -152,18 +204,37 @@ exports.updateProductVariant = async (req, res) => {
         .json({ success: false, message: "Variant not found" });
     }
 
-    await variant.update({
-      sku: sku ?? variant.sku,
-      price: price ?? variant.price,
-      stock: stock ?? variant.stock,
-      isActive: isActive ?? variant.isActive,
-      image: image ?? variant.image,
+    const updateData = {
+      sku: sku !== undefined ? sku : variant.sku,
+      price: price !== undefined ? price : variant.price,
+      originalPrice:
+        originalPrice !== undefined ? originalPrice : variant.originalPrice,
+      stock: stock !== undefined ? Number(stock) : variant.stock,
+      isActive: isActive !== undefined ? isActive : variant.isActive,
+    };
+
+    if (mediaPaths.length > 0) {
+      updateData.image = mediaPaths[0];
+      updateData.images = mediaPaths;
+    }
+
+    await variant.update(updateData);
+
+    const updated = await ProductVariant.findByPk(id, {
+      include: [
+        {
+          model: VariantOption,
+          as: "options",
+          through: { attributes: [] },
+          include: [{ model: VariantCategory, as: "category" }],
+        },
+      ],
     });
 
     res.json({
       success: true,
       message: "Variant updated successfully",
-      data: variant,
+      data: updated,
     });
   } catch (error) {
     console.error("Error updating variant:", error);

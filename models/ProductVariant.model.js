@@ -34,8 +34,10 @@ module.exports = (sequelize, DataTypes) => {
       },
       sku: { type: DataTypes.STRING, allowNull: true, unique: true },
       price: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+      originalPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
       stock: { type: DataTypes.INTEGER, defaultValue: 0 },
       image: { type: DataTypes.STRING, allowNull: true },
+      images: { type: DataTypes.JSON, allowNull: true, defaultValue: [] },
       isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     },
     { sequelize, modelName: "ProductVariant", tableName: "product_variants" }
