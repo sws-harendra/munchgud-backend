@@ -20,7 +20,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         unique: true,
       },
-      password: DataTypes.STRING,
+      password: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
 
       resetPasswordToken: {
         type: DataTypes.STRING,

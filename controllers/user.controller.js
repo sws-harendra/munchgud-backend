@@ -20,10 +20,10 @@ exports.registerUser = async (req, res, next) => {
     const { fullname, email, password } = req.body;
     const rawPhone = req.body.phoneNumber || req.body.phone;
 
-    if (!fullname || !password) {
+    if (!fullname || !fullname.trim()) {
       return res.status(400).json({
         success: false,
-        message: "Full name and password are required",
+        message: "Full name is required",
       });
     }
 
@@ -62,7 +62,10 @@ exports.registerUser = async (req, res, next) => {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    let hashedPassword = null;
+    if (password && password.trim()) {
+      hashedPassword = await bcrypt.hash(password.trim(), 10);
+    }
     const avatar = req.file ? req.file.filename : null;
     const userData = {
       fullname,
@@ -285,6 +288,13 @@ exports.loginUser = async (req, res, next) => {
       });
     }
 
+    if (!user.password) {
+      return res.status(400).json({
+        success: false,
+        message: "This account was created with OTP. Please sign in using your Mobile Number and OTP.",
+      });
+    }
+
     // Compare password
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
@@ -335,12 +345,7 @@ exports.sendPhoneOtp = async (req, res, next) => {
         });
       }
 
-      if (!password || password.length < 6) {
-        return res.status(400).json({
-          success: false,
-          message: "Password must be at least 6 characters long",
-        });
-      }
+      // Password is no longer required for registration via phone OTP
 
       // Check if mobile number already exists in Users
       const existingUserByPhone = await User.findOne({
@@ -388,7 +393,10 @@ exports.sendPhoneOtp = async (req, res, next) => {
         }
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      let hashedPassword = null;
+      if (password && password.trim()) {
+        hashedPassword = await bcrypt.hash(password.trim(), 10);
+      }
       const avatar = req.file ? req.file.filename : null;
 
       registrationData = JSON.stringify({
@@ -551,7 +559,7 @@ exports.verifyPhoneOtp = async (req, res, next) => {
         user = await User.create({
           fullname: reg.fullname,
           email: reg.email || null,
-          password: reg.password,
+          password: reg.password || null,
           phoneNumber: cleanPhone,
           avatar: reg.avatar || null,
           role: reg.role || "user",
