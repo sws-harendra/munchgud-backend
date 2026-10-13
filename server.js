@@ -61,6 +61,7 @@ app.use("/pincode", require("./routes/pincode.route"));
 app.use("/instagram", instagramRoutes);
 app.use("/social-links", require("./routes/socialLinks.route"));
 app.use("/contact", require("./routes/contact.route"));
+app.use("/warranty", require("./routes/warrantyClaim.route"));
 app.use("/forget-password", require("./routes/user.route"));
 app.use("/reset-password", require("./routes/user.route"));
 app.get("/", (req, res) => {
