@@ -36,6 +36,8 @@
     "sequelize-cli": "^6.3.0"
   },
   "overrides": {
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "handlebars": "^4.7.10",
+    "chokidar": "^4.0.3"
   }
 }
