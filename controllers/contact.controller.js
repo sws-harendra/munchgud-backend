@@ -44,13 +44,21 @@ exports.createContactInquiry = async (req, res) => {
     // Resolve name & email if logged-in user omitted them
     const finalName = name || loggedUser?.fullname || "Anonymous User";
     const finalEmail = email || loggedUser?.email;
-    const finalPhone = phone ? String(phone) : (loggedUser?.phoneNumber ? String(loggedUser.phoneNumber) : null);
+    const finalPhone = phone ? String(phone).trim() : (loggedUser?.phoneNumber ? String(loggedUser.phoneNumber).trim() : null);
     const finalUserId = loggedUser ? loggedUser.id : null;
+    const finalAttachment = req.file ? req.file.filename : (req.body.attachment ? String(req.body.attachment).trim() : null);
 
     if (!finalEmail) {
       return res.status(400).json({
         success: false,
         message: "Email address is required.",
+      });
+    }
+
+    if (source === "support_warranty" && !finalPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone / WhatsApp number is mandatory.",
       });
     }
 
@@ -77,6 +85,7 @@ exports.createContactInquiry = async (req, res) => {
       source,
       status: "new",
       userId: finalUserId,
+      attachment: finalAttachment,
       ipAddress: String(clientIp).slice(0, 100),
     });
 
@@ -123,18 +132,27 @@ exports.getAllInquiriesAdmin = async (req, res) => {
       ];
     }
 
-    const inquiries = await ContactInquiry.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: User,
-          as: "user",
-          attributes: ["id", "fullname", "email", "phoneNumber", "role", "avatar"],
-          required: false,
-        },
-      ],
-      order: [["createdAt", "DESC"]],
-    });
+    let inquiries;
+    try {
+      inquiries = await ContactInquiry.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: ["id", "fullname", "email", "phoneNumber", "role", "avatar"],
+            required: false,
+          },
+        ],
+        order: [["createdAt", "DESC"]],
+      });
+    } catch (includeErr) {
+      // Fallback without User association if Users table does not exist
+      inquiries = await ContactInquiry.findAll({
+        where: whereClause,
+        order: [["createdAt", "DESC"]],
+      });
+    }
 
     // Compute stats
     const allInquiries = await ContactInquiry.findAll({ attributes: ["status", "source"] });

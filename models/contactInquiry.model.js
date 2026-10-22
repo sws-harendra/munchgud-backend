@@ -52,6 +52,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+      attachment: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       ipAddress: {
         type: DataTypes.STRING,
         allowNull: true,
@@ -68,13 +72,14 @@ module.exports = (sequelize, DataTypes) => {
       ContactInquiry.belongsTo(models.User, {
         foreignKey: "userId",
         as: "user",
+        constraints: false,
       });
     }
   };
 
-  // Auto-sync table if not exists so it works seamlessly without breaking
-  ContactInquiry.sync({ alter: false }).catch(() => {
-    // In case DB connection is established later
+  // Auto-sync table if not exists or update columns
+  ContactInquiry.sync({ alter: true, constraints: false }).catch((err) => {
+    console.error("ContactInquiry sync warning:", err.message);
   });
 
   return ContactInquiry;
