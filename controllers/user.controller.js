@@ -118,19 +118,118 @@ exports.registerUser = async (req, res, next) => {
 };
 exports.updateUser = async (req, res, next) => {
   try {
-    const { fullname, email, phoneNumber, role } = req.body;
-    const user = await User.findByPk(req.params.id);
+    const { fullname, email, role, password } = req.body;
+    const rawPhone = req.body.phoneNumber || req.body.phone;
 
-    if (req.file && user.avatar && fs.existsSync(`uploads/${user.avatar}`)) {
-      fs.unlinkSync(`uploads/${user.avatar}`);
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+        fs.unlinkSync(`uploads/${req.file.filename}`);
+      }
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
+    // 1. Email uniqueness validation if changed
+    let trimmedEmail = user.email;
+    if (email !== undefined) {
+      trimmedEmail = email && email.trim() ? email.trim().toLowerCase() : null;
+      if (trimmedEmail && trimmedEmail !== (user.email || "").toLowerCase()) {
+        const existingEmail = await User.findOne({
+          where: {
+            id: { [Op.ne]: user.id },
+            email: trimmedEmail,
+          },
+        });
+        if (existingEmail) {
+          if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+            fs.unlinkSync(`uploads/${req.file.filename}`);
+          }
+          return res.status(400).json({
+            success: false,
+            message: "An account with this email address already exists",
+          });
+        }
+      }
+    }
+
+    // 2. Phone number normalization and uniqueness if changed
+    let cleanPhone = user.phoneNumber;
+    if (rawPhone !== undefined) {
+      cleanPhone = rawPhone ? smsService.normalizePhoneNumber(rawPhone) : null;
+      if (cleanPhone && String(cleanPhone) !== String(user.phoneNumber)) {
+        const existingPhone = await User.findOne({
+          where: {
+            id: { [Op.ne]: user.id },
+            [Op.or]: [
+              { phoneNumber: cleanPhone },
+              { phoneNumber: Number(cleanPhone) || 0 },
+            ],
+          },
+        });
+        if (existingPhone) {
+          if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+            fs.unlinkSync(`uploads/${req.file.filename}`);
+          }
+          return res.status(400).json({
+            success: false,
+            message: "An account with this mobile number already exists",
+          });
+        }
+      }
+    }
+
+    // 3. Avatar update and cleanup old avatar
+    if (req.file && user.avatar && fs.existsSync(`uploads/${user.avatar}`)) {
+      try {
+        fs.unlinkSync(`uploads/${user.avatar}`);
+      } catch (fErr) {
+        console.log("Could not unlink old avatar:", fErr.message);
+      }
+    }
     const avatar = req.file ? req.file.filename : user.avatar;
 
-    await user.update({ fullname, email, phoneNumber, role, avatar });
+    // 4. Password validation & hashing if provided
+    let hashedPassword = user.password;
+    if (password && String(password).trim().length > 0) {
+      const trimmedPassword = String(password).trim();
+      if (trimmedPassword.length < 6) {
+        if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+          fs.unlinkSync(`uploads/${req.file.filename}`);
+        }
+        return res.status(400).json({
+          success: false,
+          message: "Password must be at least 6 characters long",
+        });
+      }
+      hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+    }
 
-    res.json({ success: true, user });
+    // 5. Update user record
+    await user.update({
+      fullname: fullname !== undefined && fullname.trim() ? fullname.trim() : user.fullname,
+      email: trimmedEmail,
+      phoneNumber: cleanPhone,
+      role: role || user.role,
+      avatar,
+      password: hashedPassword,
+    });
+
+    const { password: _p, resetPasswordToken: _rt, resetPasswordExpire: _re, ...safeUser } = user.toJSON();
+
+    return res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user: safeUser,
+    });
   } catch (err) {
+    if (req.file && fs.existsSync(`uploads/${req.file.filename}`)) {
+      try {
+        fs.unlinkSync(`uploads/${req.file.filename}`);
+      } catch (_) {}
+    }
     next(new ErrorHandler(err.message, 500));
   }
 };
