@@ -1,34 +1,49 @@
 "use strict";
+require("dotenv").config();
 const bcrypt = require("bcryptjs");
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Hash the admin password (change 'admin123' to your desired password)
-    const hashedPassword = await bcrypt.hash("admin123", 10);
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@munchgud.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+    const adminName = process.env.ADMIN_NAME || "MunchGud Admin";
 
-    // Check if the admin user already exists to prevent duplicate key errors
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+    // Check if the admin user already exists
     const [existingUsers] = await queryInterface.sequelize.query(
-      `SELECT id FROM Users WHERE email = 'admin@munchgud.com' LIMIT 1;`
+      `SELECT id FROM Users WHERE email = '${adminEmail.replace(/'/g, "''")}' LIMIT 1;`
     );
 
     if (existingUsers.length === 0) {
       await queryInterface.bulkInsert("Users", [
         {
-          fullname: "MunchGud Admin",
-          email: "admin@munchgud.com",
+          fullname: adminName,
+          email: adminEmail,
           password: hashedPassword,
           role: "admin",
           createdAt: new Date(),
           updatedAt: new Date(),
         },
       ]);
-      console.log("Admin user seeded successfully!");
+      console.log(`Admin user (${adminEmail}) seeded successfully!`);
     } else {
-      console.log("Admin user with email 'admin@munchgud.com' already exists, skipping seeding.");
+      await queryInterface.bulkUpdate(
+        "Users",
+        {
+          password: hashedPassword,
+          role: "admin",
+          updatedAt: new Date(),
+        },
+        { email: adminEmail }
+      );
+      console.log(`Admin user (${adminEmail}) exists. Password & admin role verified!`);
     }
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete("Users", { email: "admin@munchgud.com" }, {});
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@munchgud.com";
+    await queryInterface.bulkDelete("Users", { email: adminEmail }, {});
   },
 };
+
